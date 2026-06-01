@@ -9,6 +9,7 @@ Usage:
 """
 
 import asyncio
+import getpass
 import sys
 from pathlib import Path
 
@@ -63,10 +64,10 @@ async def create_database_if_needed(
 def write_env(db_name: str, table_prefix: str, existing: dict[str, str]) -> None:
     """Write updated .env file, preserving existing non-DB values."""
     db_keys = {
-        "DB_HOST": "localhost",
-        "DB_PORT": "5432",
-        "DB_USER": "root",
-        "DB_PASSWORD": "123456",
+        "DB_HOST": existing.get("DB_HOST", "localhost"),
+        "DB_PORT": existing.get("DB_PORT", "5432"),
+        "DB_USER": existing.get("DB_USER", getpass.getuser()),
+        "DB_PASSWORD": existing.get("DB_PASSWORD", "123456"),
         "DB_NAME": db_name,
         "DB_TABLE_PREFIX": table_prefix,
     }
@@ -112,11 +113,11 @@ async def main() -> None:
         "Table name prefix (e.g., 'fs_')", default=existing.get("DB_TABLE_PREFIX", "")
     )
 
-    # Fixed credentials per project convention
-    user = "root"
-    password = "123456"
-    host = "localhost"
-    port = 5432
+    # Credentials: from .env or current OS user
+    user = existing.get("DB_USER", getpass.getuser())
+    password = existing.get("DB_PASSWORD", "123456")
+    host = existing.get("DB_HOST", "localhost")
+    port = int(existing.get("DB_PORT", "5432"))
 
     print("\nCreating databases...")
     await create_database_if_needed(db_name, user, password, host, port)
@@ -132,7 +133,7 @@ async def main() -> None:
     else:
         print("  Table prefix: (none) → e.g., 'users'")
 
-    print("\nDone! Run 'make dev-db' to start PostgreSQL, then 'make dev-be' for the backend.")
+    print("\nDone! Run 'make dev-be' to start the backend, or 'make dev-local' for everything.")
 
 
 if __name__ == "__main__":

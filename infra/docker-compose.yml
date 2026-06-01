@@ -1,10 +1,14 @@
+# Docker Compose for deployment / CI.
+# For local development, use `make dev-local` instead — no Docker needed.
+
 services:
   postgres:
     image: postgres:16
+    env_file: .env.docker
     environment:
-      POSTGRES_DB: starter
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: ${DB_NAME:-starter}
+      POSTGRES_USER: ${DB_USER:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
     ports:
       - "5432:5432"
     volumes:

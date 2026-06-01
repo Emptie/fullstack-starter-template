@@ -31,7 +31,7 @@ class DatabaseSettings(BaseSettings):
 
     db_host: str = "localhost"
     db_port: int = 5432
-    db_user: str = "root"
+    db_user: str = "emptie"
     db_password: str = "123456"
     db_name: str = "starter"
     db_table_prefix: str = ""

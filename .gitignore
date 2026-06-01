@@ -46,3 +46,4 @@ packages/shared-ts/src/types/
 npm-debug.log*
 .gstack/
 .env
+.playwright-mcp/

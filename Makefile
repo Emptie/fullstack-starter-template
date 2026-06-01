@@ -1,4 +1,4 @@
-.PHONY: setup dev generate lint typecheck test clean init-db
+.PHONY: setup dev dev-local dev-docker generate lint typecheck test clean init-db
 
 # ── Setup ──────────────────────────────────────────────
 
@@ -11,16 +11,30 @@ setup: ## Install all dependencies
 
 # ── Development ────────────────────────────────────────
 
-dev: ## Start all services (postgres + backend + frontend)
-	concurrently --kill-others-on-fail \
+dev: dev-local ## Default: start all services (local, no Docker)
+
+dev-local: ## Start backend + frontend (local PostgreSQL, no Docker)
+	npx concurrently --kill-others-on-fail \
+		--names "web-be,web-fe" \
+		--prefix-colors "green,yellow" \
+		"cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000" \
+		"cd apps/web-frontend && pnpm dev --port 5173"
+
+dev-docker: ## Start all services with Docker PostgreSQL
+	npx concurrently --kill-others-on-fail \
 		--names "docker,web-be,web-fe" \
 		--prefix-colors "blue,green,yellow" \
 		"docker compose -f infra/docker-compose.yml up" \
 		"cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000" \
 		"cd apps/web-frontend && pnpm dev --port 5173"
 
-dev-db: ## Start only PostgreSQL
+dev-db: ## Start PostgreSQL via Docker (for deployment testing)
 	docker compose -f infra/docker-compose.yml up -d
+
+dev-db-local: ## Check local PostgreSQL is running + ensure database exists
+	@/opt/homebrew/opt/postgresql@18/bin/pg_isready -h localhost -p 5432 > /dev/null 2>&1 || (echo "❌ PostgreSQL not running. Start with: brew services start postgresql@18" && exit 1)
+	@echo "✅ PostgreSQL is running"
+	uv run python scripts/init_db.py
 
 init-db: ## Interactive database setup (prompts for name and prefix)
 	uv run python scripts/init_db.py
