@@ -1,0 +1,9 @@
+{
+  "name": "fullstack-starter-template",
+  "private": true,
+  "scripts": {},
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "json-schema-to-typescript": "^15.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+[project]
+name = "fullstack-starter-template"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]
+
+[tool.uv.workspace]
+members = ["apps/web-backend", "packages/shared-py"]
+
+[tool.uv.sources]
+shared-py = { workspace = true }
+
+[tool.ruff]
+line-length = 120

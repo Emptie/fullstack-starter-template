@@ -1,0 +1,13 @@
+[project]
+name = "web-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "shared-py",
+    "fastapi>=0.115",
+    "uvicorn[standard]",
+    "alembic",
+]
+
+[tool.uv.sources]
+shared-py = { workspace = true }
