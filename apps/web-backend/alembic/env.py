@@ -19,7 +19,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Use the database URL from shared config
-config.set_main_option("sqlalchemy.url", settings.db.database_url)
+config.set_main_option("sqlalchemy.url", settings.db.effective_database_url)
 
 target_metadata = Base.metadata
 

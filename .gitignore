@@ -45,3 +45,4 @@ packages/shared-ts/src/types/
 *.log
 npm-debug.log*
 .gstack/
+.env

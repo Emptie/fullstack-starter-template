@@ -14,8 +14,6 @@ class User(Base):
     Password is stored as a bcrypt hash via passlib.
     """
 
-    __tablename__ = "users"
-
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(64))

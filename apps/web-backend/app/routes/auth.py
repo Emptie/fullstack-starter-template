@@ -1,6 +1,6 @@
 """Auth routes — register, login, refresh, me."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, status
 from sqlalchemy import select
 
 from starter_shared.security import (
@@ -71,7 +71,7 @@ async def login(body: UserLogin, session: DbSession) -> TokenResponse:
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(token: str, session: DbSession) -> TokenResponse:
+async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
     """Exchange a valid refresh token for a new token pair."""
     payload = verify_token(token, token_type="refresh")
     if payload is None:

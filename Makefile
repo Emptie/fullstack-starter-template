@@ -1,4 +1,4 @@
-.PHONY: setup dev generate lint typecheck test clean
+.PHONY: setup dev generate lint typecheck test clean init-db
 
 # ── Setup ──────────────────────────────────────────────
 
@@ -21,6 +21,9 @@ dev: ## Start all services (postgres + backend + frontend)
 
 dev-db: ## Start only PostgreSQL
 	docker compose -f infra/docker-compose.yml up -d
+
+init-db: ## Interactive database setup (prompts for name and prefix)
+	uv run python scripts/init_db.py
 
 dev-be: ## Start only backend (requires DB running)
 	cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000
