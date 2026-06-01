@@ -1,14 +1,27 @@
-"""JWT security utilities.
+"""JWT security utilities and password hashing.
 
-Provides token creation and verification for JWT + Refresh Token auth.
-Phase 1 skeleton — full implementation in Phase 2 (auth feature).
+Provides token creation/verification and bcrypt password hashing
+for JWT + Refresh Token auth.
 """
 
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 
 from starter_shared.config import settings
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    """Hash a plaintext password using bcrypt."""
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plaintext password against a bcrypt hash."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:

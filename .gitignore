@@ -44,3 +44,4 @@ packages/shared-ts/src/types/
 # Logs
 *.log
 npm-debug.log*
+.gstack/

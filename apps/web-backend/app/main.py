@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from starter_shared.config import settings
 
-from app.routes import health
+from app.routes import auth, health
 
 
 @asynccontextmanager
@@ -46,3 +46,4 @@ app.add_middleware(
 
 # Register routes
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
