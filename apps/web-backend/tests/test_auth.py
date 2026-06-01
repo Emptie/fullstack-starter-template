@@ -122,3 +122,29 @@ async def test_refresh_with_access_token(client, test_user):
         json=test_user["access_token"],
     )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_rotation(client, test_user):
+    """After refresh, the old refresh token is revoked."""
+    # First refresh — succeeds
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json=test_user["refresh_token"],
+    )
+    assert response.status_code == 200
+    new_tokens = response.json()
+
+    # Replay the same refresh token — should be revoked
+    response2 = await client.post(
+        "/api/v1/auth/refresh",
+        json=test_user["refresh_token"],
+    )
+    assert response2.status_code == 401
+
+    # But the new refresh token works
+    response3 = await client.post(
+        "/api/v1/auth/refresh",
+        json=new_tokens["refresh_token"],
+    )
+    assert response3.status_code == 200

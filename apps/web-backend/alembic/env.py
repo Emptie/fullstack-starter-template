@@ -12,6 +12,7 @@ from starter_shared.database import Base
 
 # Import all models so Alembic can detect them
 from app.models import User  # noqa: F401
+from app.models.refresh_token import RefreshToken  # noqa: F401
 
 config = context.config
 
