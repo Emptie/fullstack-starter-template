@@ -9,6 +9,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+defineOptions({ inheritAttrs: false })
 const emit = defineEmits<{ "update:modelValue": [value: string] }>()
 
 const classes = computed(() =>
@@ -24,5 +25,5 @@ function onInput(event: Event) {
 </script>
 
 <template>
-  <input :class="classes" :type="type" :value="modelValue" @input="onInput" />
+  <input :class="classes" :type="type" :value="modelValue" v-bind="$attrs" @input="onInput" />
 </template>
