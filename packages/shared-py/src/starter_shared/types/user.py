@@ -93,3 +93,11 @@ class AdminUserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     name: str = Field(min_length=1, max_length=64)
     role: UserRole = UserRole.user
+
+
+class UserUpdateAdmin(BaseModel):
+    """Schema for admin editing a user's profile (name, email, role)."""
+
+    name: str = Field(min_length=1, max_length=64)
+    email: EmailStr
+    role: UserRole

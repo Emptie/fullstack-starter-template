@@ -1,6 +1,6 @@
 """Shared Pydantic types — single source of truth for the type bridge."""
 
-from starter_shared.types.admin import DashboardStats
+from starter_shared.types.admin import DashboardStats, PaginatedUserResponse
 from starter_shared.types.health import HealthCheck
 from starter_shared.types.user import (
     AdminUserCreate,
@@ -14,6 +14,7 @@ from starter_shared.types.user import (
     UserRole,
     UserRoleUpdate,
     UserUpdate,
+    UserUpdateAdmin,
 )
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "DashboardStats",
     "ForgotPassword",
     "HealthCheck",
+    "PaginatedUserResponse",
     "PasswordChange",
     "ResetPassword",
     "TokenResponse",
@@ -30,4 +32,5 @@ __all__ = [
     "UserRole",
     "UserRoleUpdate",
     "UserUpdate",
+    "UserUpdateAdmin",
 ]

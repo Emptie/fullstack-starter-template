@@ -36,7 +36,9 @@ EXPORT_MODELS: list[str] = [
     "starter_shared.types.user:PasswordChange",
     "starter_shared.types.user:UserRoleUpdate",
     "starter_shared.types.user:AdminUserCreate",
+    "starter_shared.types.user:UserUpdateAdmin",
     "starter_shared.types.admin:DashboardStats",
+    "starter_shared.types.admin:PaginatedUserResponse",
 ]
 
 # Paths
