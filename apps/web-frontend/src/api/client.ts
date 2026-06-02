@@ -5,13 +5,58 @@
  * - Base URL configuration
  * - Auth header injection from localStorage
  * - 401 response interception with token refresh
+ * - Error body extraction from backend {"detail": "..."} responses
+ * - Redirect to /login when refresh fails
  */
+
+import router from "@/router"
 
 const API_BASE = "/api/v1"
 
-interface ApiError {
+/**
+ * Typed API error with HTTP status and parsed message.
+ *
+ * The backend returns {"detail": "..."} on errors — we extract
+ * that as the message, falling back to HTTP statusText.
+ */
+export class ApiError extends Error {
   status: number
-  message: string
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
+/**
+ * Attempt to parse a JSON error body from the response.
+ * FastAPI returns {"detail": "..."} — we extract that string.
+ */
+async function parseErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = await response.json()
+    if (body && typeof body.detail === "string") {
+      return body.detail
+    }
+    // Fallback: return the whole body as a string if it's a string
+    if (typeof body === "string") {
+      return body
+    }
+  } catch {
+    // Response body wasn't valid JSON — fall through
+  }
+  return response.statusText || `Request failed with status ${response.status}`
+}
+
+/**
+ * Clear auth tokens from localStorage and redirect to /login.
+ * Called when token refresh fails (the user's session is over).
+ */
+function handleSessionExpired(): void {
+  localStorage.removeItem("access_token")
+  localStorage.removeItem("refresh_token")
+  router.push({ name: "login" })
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -37,13 +82,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       if (refreshed) {
         return request<T>(path, options)
       }
+      // Refresh failed — session is over
+      handleSessionExpired()
     }
 
-    const error: ApiError = {
-      status: response.status,
-      message: response.statusText,
-    }
-    throw error
+    const message = await parseErrorMessage(response)
+    throw new ApiError(response.status, message)
   }
 
   return response.json() as Promise<T>

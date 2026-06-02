@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { UserResponse } from "@starter/shared"
+import router from "@/router"
 import * as authApi from "@/api/auth"
 
 export const useAuthStore = defineStore("auth", () => {
@@ -48,6 +49,7 @@ export const useAuthStore = defineStore("auth", () => {
   async function refreshAccessToken() {
     if (!refreshToken.value) {
       clearAuth()
+      router.push({ name: "login" })
       return
     }
     try {
@@ -55,6 +57,7 @@ export const useAuthStore = defineStore("auth", () => {
       setTokens(res.access_token, res.refresh_token)
     } catch {
       clearAuth()
+      router.push({ name: "login" })
     }
   }
 
