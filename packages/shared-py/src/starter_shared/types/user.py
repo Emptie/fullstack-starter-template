@@ -5,8 +5,17 @@ After modifying, run `make generate` to update TypeScript types.
 """
 
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+class UserRole(str, Enum):
+    """User role for access control."""
+
+    admin = "admin"
+    editor = "editor"
+    user = "user"
 
 
 class UserCreate(BaseModel):
@@ -33,6 +42,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     name: str
+    role: UserRole = UserRole.user
     created_at: datetime
 
 
@@ -68,3 +78,18 @@ class ResetPassword(BaseModel):
 
     token: str = Field(min_length=1)
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class UserRoleUpdate(BaseModel):
+    """Schema for updating a user's role (admin only)."""
+
+    role: UserRole
+
+
+class AdminUserCreate(BaseModel):
+    """Schema for admin creating a new user account."""
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=64)
+    role: UserRole = UserRole.user
