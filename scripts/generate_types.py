@@ -148,7 +148,12 @@ def main() -> None:
             seen_aliases.add(alias)
         deduped_parts.append(part)
 
-    generated_file.write_text(header + "\n".join(deduped_parts))
+    combined = "\n".join(deduped_parts)
+    # Remove `[k: string]: unknown;` lines — they cause duplicate index
+    # signature errors when interfaces reference each other (e.g. PaginatedUserResponse → UserResponse[])
+    combined = re.sub(r"^\s*\[k: string\]: unknown;\n", "", combined, flags=re.MULTILINE)
+
+    generated_file.write_text(header + combined)
     print(f"  Written: {generated_file.relative_to(REPO_ROOT)}")
 
     # Step 4: Update the barrel index.ts to re-export generated types

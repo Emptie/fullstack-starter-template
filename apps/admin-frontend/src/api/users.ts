@@ -1,11 +1,13 @@
 import type {
   AdminUserCreate,
   UserResponse,
-  UserRole,
   UserUpdateAdmin,
   PaginatedUserResponse,
 } from "@starter/shared"
 import { apiClient } from "./client"
+
+/** User role string union — mirrors UserRole from Pydantic enum. */
+export type UserRole = "admin" | "editor" | "user"
 
 export async function listUsers(params?: {
   skip?: number
