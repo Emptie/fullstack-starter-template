@@ -17,6 +17,10 @@ import CardHeader from "@/components/ui/card/CardHeader.vue"
 import CardTitle from "@/components/ui/card/CardTitle.vue"
 import CardContent from "@/components/ui/card/CardContent.vue"
 import LoadingSpinner from "@/components/LoadingSpinner.vue"
+import Toast from "@/components/Toast.vue"
+import { useToast } from "@/composables/useToast"
+
+const { addToast } = useToast()
 
 // --- List state ---
 const users = ref<UserResponse[]>([])
@@ -73,10 +77,16 @@ async function handleCreate() {
   try {
     await createUser({ ...createForm.value, role: createForm.value.role as UserRole })
     showCreateDialog.value = false
+    addToast("User created", "success")
     await loadUsers()
   } catch (err) {
-    if (err instanceof ApiError) createError.value = err.message
-    else createError.value = "Failed to create user"
+    if (err instanceof ApiError) {
+      createError.value = err.message
+      addToast(err.message, "error")
+    } else {
+      createError.value = "Failed to create user"
+      addToast("Failed to create user", "error")
+    }
   } finally {
     createLoading.value = false
   }
@@ -104,10 +114,16 @@ async function handleEdit() {
       role: editForm.value.role,
     })
     showEditDialog.value = false
+    addToast("User updated", "success")
     await loadUsers()
   } catch (err) {
-    if (err instanceof ApiError) editError.value = err.message
-    else editError.value = "Failed to update user"
+    if (err instanceof ApiError) {
+      editError.value = err.message
+      addToast(err.message, "error")
+    } else {
+      editError.value = "Failed to update user"
+      addToast("Failed to update user", "error")
+    }
   } finally {
     editLoading.value = false
   }
@@ -127,9 +143,12 @@ async function handleDelete() {
   try {
     await deleteUser(deleteTarget.value.id)
     deleteTarget.value = null
+    addToast("User deleted", "success")
     await loadUsers()
   } catch (err) {
-    if (err instanceof ApiError) alert(err.message)
+    if (err instanceof ApiError) {
+      addToast(err.message, "error")
+    }
   } finally {
     deleteLoading.value = false
   }
@@ -361,5 +380,6 @@ onMounted(loadUsers)
         </CardContent>
       </Card>
     </div>
+    <Toast />
   </div>
 </template>
