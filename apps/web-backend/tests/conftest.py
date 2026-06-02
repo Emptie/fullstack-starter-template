@@ -21,6 +21,7 @@ from starter_shared.database import Base, get_session
 # Import models so they register with Base.metadata before table creation
 from app.models.user import User  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
+from app.models.password_reset_token import PasswordResetToken  # noqa: F401
 
 # Build test database URL: same server, database name with _test suffix
 test_db_url = settings.db.get_database_url(f"{settings.db.db_name}_test")

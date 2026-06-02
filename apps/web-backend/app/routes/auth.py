@@ -1,11 +1,16 @@
-"""Auth routes — register, login, refresh, me.
+"""Auth routes — register, login, refresh, me, forgot-password, reset-password.
 
 Refresh tokens are stored in the database and rotated on each use.
 If a revoked token is replayed, all tokens for that user are revoked
 to mitigate token theft.
+
+Password reset tokens are SHA-256 hashed in the database and expire after
+a configurable period. The email service is pluggable: SMTP if configured,
+console output otherwise.
 """
 
 import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, HTTPException, status
@@ -20,17 +25,19 @@ from starter_shared.security import (
     verify_token,
 )
 from starter_shared.types.user import (
-    PasswordChange,
+    ForgotPassword,
+    ResetPassword,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
-    UserUpdate,
 )
 
 from app.dependencies import CurrentUser, DbSession
+from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.services.email import send_password_reset_email
 
 router = APIRouter()
 
@@ -190,40 +197,95 @@ async def me(current_user: CurrentUser) -> UserResponse:
     )
 
 
-@router.patch("/me", response_model=UserResponse)
-async def update_me(
-    body: UserUpdate,
-    session: DbSession,
-    current_user: CurrentUser,
-) -> UserResponse:
-    """Update the authenticated user's profile (name)."""
-    current_user.name = body.name
-    await session.flush()
-    await session.refresh(current_user)
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-        created_at=current_user.created_at,
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+async def forgot_password(body: ForgotPassword, session: DbSession) -> dict:
+    """Generate a password reset token and send it via email.
+
+    Always returns 200 even if the email does not exist, to prevent
+    email enumeration attacks.
+    """
+    # Look up the user — but do not reveal whether they exist
+    result = await session.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        # Silently return success to prevent email enumeration
+        return {"message": "If that email is registered, a reset link has been sent."}
+
+    # Generate a random token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        hours=settings.security.password_reset_expire_hours
     )
 
+    # Store the hashed token
+    reset_token = PasswordResetToken(
+        token_hash=token_hash,
+        user_id=user.id,
+        expires_at=expires_at,
+    )
+    session.add(reset_token)
+    await session.flush()
 
-@router.post("/change-password")
-async def change_password(
-    body: PasswordChange,
-    session: DbSession,
-    current_user: CurrentUser,
-) -> dict[str, str]:
-    """Change the authenticated user's password.
+    # Send email (SMTP or console fallback)
+    await send_password_reset_email(user.email, raw_token)
 
-    Verifies the old password before setting the new one.
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(body: ResetPassword, session: DbSession) -> dict:
+    """Verify a password reset token and set a new password.
+
+    The token is looked up by its SHA-256 hash. It must not be expired or used.
+    After successful reset, the token is marked as used.
     """
-    if not verify_password(body.old_password, current_user.hashed_password):
+    # Hash the provided token to look it up
+    token_hash = _hash_token(body.token)
+    result = await session.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash
+        )
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if reset_token is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect",
+            detail="Invalid or expired reset token",
         )
 
-    current_user.hashed_password = hash_password(body.new_password)
-    await session.flush()
-    return {"message": "Password updated successfully"}
+    # Check if already used
+    if reset_token.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset token has already been used",
+        )
+
+    # Check expiry
+    if reset_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired",
+        )
+
+    # Look up the user
+    user_result = await session.execute(
+        select(User).where(User.id == reset_token.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not found",
+        )
+
+    # Update the password
+    user.hashed_password = hash_password(body.new_password)
+
+    # Mark token as used
+    reset_token.used = True
+
+    return {"message": "Password has been reset successfully"}

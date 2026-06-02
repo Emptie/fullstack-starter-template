@@ -2,20 +2,20 @@
 
 from starter_shared.types.health import HealthCheck
 from starter_shared.types.user import (
-    PasswordChange,
+    ForgotPassword,
+    ResetPassword,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
-    UserUpdate,
 )
 
 __all__ = [
     "HealthCheck",
-    "PasswordChange",
+    "ForgotPassword",
+    "ResetPassword",
     "TokenResponse",
     "UserCreate",
     "UserLogin",
     "UserResponse",
-    "UserUpdate",
 ]

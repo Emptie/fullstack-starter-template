@@ -36,22 +36,22 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-class UserUpdate(BaseModel):
-    """Schema for updating user profile (name only for now)."""
-
-    name: str = Field(min_length=1, max_length=64)
-
-
-class PasswordChange(BaseModel):
-    """Schema for changing the user's password."""
-
-    old_password: str
-    new_password: str = Field(min_length=8, max_length=128)
-
-
 class TokenResponse(BaseModel):
     """Schema for JWT token pairs returned after login/register/refresh."""
 
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class ForgotPassword(BaseModel):
+    """Schema for forgot-password requests."""
+
+    email: EmailStr
+
+
+class ResetPassword(BaseModel):
+    """Schema for reset-password requests."""
+
+    token: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=128)
