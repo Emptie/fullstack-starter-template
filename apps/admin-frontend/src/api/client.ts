@@ -91,25 +91,33 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+let refreshPromise: Promise<boolean> | null = null
+
 async function tryRefresh(): Promise<boolean> {
-  const token = localStorage.getItem("admin_refresh_token")
-  if (!token) return false
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    const token = localStorage.getItem("admin_refresh_token")
+    if (!token) return false
 
-  try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(token),
-    })
-    if (!res.ok) return false
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(token),
+      })
+      if (!res.ok) return false
 
-    const data = await res.json()
-    localStorage.setItem("admin_access_token", data.access_token)
-    localStorage.setItem("admin_refresh_token", data.refresh_token)
-    return true
-  } catch {
-    return false
-  }
+      const data = await res.json()
+      localStorage.setItem("admin_access_token", data.access_token)
+      localStorage.setItem("admin_refresh_token", data.refresh_token)
+      return true
+    } catch {
+      return false
+    } finally {
+      refreshPromise = null
+    }
+  })()
+  return refreshPromise
 }
 
 export const apiClient = {

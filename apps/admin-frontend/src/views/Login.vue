@@ -35,7 +35,8 @@ async function handleSubmit() {
 
   try {
     await authStore.login(email.value, password.value)
-    const redirect = (route.query.redirect as string) || "/"
+    const raw = (route.query.redirect as string) || "/"
+    const redirect = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/"
     router.push(redirect)
   } catch (err) {
     if (err instanceof ApiError) {
