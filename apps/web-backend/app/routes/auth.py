@@ -26,11 +26,13 @@ from starter_shared.security import (
 )
 from starter_shared.types.user import (
     ForgotPassword,
+    PasswordChange,
     ResetPassword,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
+    UserUpdate,
 )
 
 from app.dependencies import CurrentUser, DbSession
@@ -195,6 +197,45 @@ async def me(current_user: CurrentUser) -> UserResponse:
         name=current_user.name,
         created_at=current_user.created_at,
     )
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    body: UserUpdate,
+    session: DbSession,
+    current_user: CurrentUser,
+) -> UserResponse:
+    """Update the authenticated user's profile (name)."""
+    current_user.name = body.name
+    await session.flush()
+    await session.refresh(current_user)
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name,
+        created_at=current_user.created_at,
+    )
+
+
+@router.post("/change-password")
+async def change_password(
+    body: PasswordChange,
+    session: DbSession,
+    current_user: CurrentUser,
+) -> dict[str, str]:
+    """Change the authenticated user's password.
+
+    Verifies the old password before setting the new one.
+    """
+    if not verify_password(body.old_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    current_user.hashed_password = hash_password(body.new_password)
+    await session.flush()
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
