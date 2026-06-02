@@ -24,7 +24,7 @@ async def get_dashboard_stats(session: DbSession, current_user: CurrentUser) -> 
     editor_count = (
         await session.scalar(select(func.count(User.id)).where(User.role == UserRole.editor))
     ) or 0
-    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    thirty_days_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
     recent_registrations = (
         await session.scalar(select(func.count(User.id)).where(User.created_at >= thirty_days_ago))
     ) or 0
