@@ -32,6 +32,7 @@ from starter_shared.types.user import (
     UserCreate,
     UserLogin,
     UserResponse,
+    UserRole,
     UserUpdate,
 )
 
@@ -96,6 +97,7 @@ async def register(body: UserCreate, session: DbSession) -> TokenResponse:
         email=body.email,
         name=body.name,
         hashed_password=hash_password(body.password),
+        role=UserRole.user,
     )
     session.add(user)
     await session.flush()
@@ -195,6 +197,7 @@ async def me(current_user: CurrentUser) -> UserResponse:
         id=current_user.id,
         email=current_user.email,
         name=current_user.name,
+        role=current_user.role,
         created_at=current_user.created_at,
     )
 
@@ -213,6 +216,7 @@ async def update_me(
         id=current_user.id,
         email=current_user.email,
         name=current_user.name,
+        role=current_user.role,
         created_at=current_user.created_at,
     )
 
