@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import LoadingSpinner from "@/components/LoadingSpinner.vue"
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -234,7 +235,7 @@ onMounted(async () => {
           <Button variant="outline" class="w-full" @click="handleLogout">Sign Out</Button>
         </div>
 
-        <div v-else class="text-center text-muted-foreground">Loading...</div>
+        <LoadingSpinner v-else text="Loading profile..." />
       </CardContent>
     </Card>
   </div>

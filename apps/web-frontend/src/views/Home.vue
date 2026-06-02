@@ -4,6 +4,7 @@ import { getHealth } from "@/api/health"
 import type { HealthCheck } from "@starter/shared"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import LoadingSpinner from "@/components/LoadingSpinner.vue"
 
 const health = ref<HealthCheck | null>(null)
 const error = ref<string | null>(null)
@@ -37,7 +38,7 @@ onMounted(checkHealth)
           <CardTitle>Backend Health Check</CardTitle>
         </CardHeader>
         <CardContent>
-          <div v-if="loading" class="text-muted-foreground">Loading...</div>
+          <LoadingSpinner v-if="loading" text="Checking backend..." />
 
           <div v-else-if="error" class="space-y-2">
             <div class="flex items-center gap-2">
