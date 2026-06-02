@@ -4,9 +4,39 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
+    "admin-backend",
     "fullstack-starter-template",
     "shared-py",
     "web-backend",
+]
+
+[[package]]
+name = "admin-backend"
+version = "0.1.0"
+source = { virtual = "apps/admin-backend" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "shared-py" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "shared-py", editable = "packages/shared-py" },
+    { name = "uvicorn", extras = ["standard"] },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
 ]
 
 [[package]]
