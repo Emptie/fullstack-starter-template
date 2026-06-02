@@ -285,6 +285,9 @@ async def reset_password(body: ResetPassword, session: DbSession) -> dict:
     # Update the password
     user.hashed_password = hash_password(body.new_password)
 
+    # Revoke all refresh tokens so compromised sessions are terminated
+    await _revoke_all_user_tokens(session, user.id)
+
     # Mark token as used
     reset_token.used = True
 

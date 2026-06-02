@@ -108,6 +108,9 @@ class AppSettings(BaseSettings):
     web_frontend_port: int = 5173
     admin_frontend_port: int = 5174
 
+    # Frontend base URL used for password reset links and similar
+    frontend_base_url: str = "http://localhost:5173"
+
     model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
 
 

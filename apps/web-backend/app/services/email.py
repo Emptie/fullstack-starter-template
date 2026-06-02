@@ -20,7 +20,7 @@ async def send_password_reset_email(to_email: str, token: str) -> None:
         to_email: Recipient email address.
         token: Raw password reset token (not the hash).
     """
-    reset_url = f"http://localhost:{settings.web_frontend_port}/reset-password?token={token}"
+    reset_url = f"{settings.frontend_base_url}/reset-password?token={token}"
     subject = "Password Reset Request"
     body = (
         f"You requested a password reset.\n\n"
