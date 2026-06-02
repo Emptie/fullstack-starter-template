@@ -14,6 +14,7 @@ setup: ## Install all dependencies
 dev: dev-local ## Default: start all services (local, no Docker)
 
 dev-local: ## Start backend + frontend (local PostgreSQL, no Docker)
+	cd apps/web-backend && uv run alembic upgrade head
 	npx concurrently --kill-others-on-fail \
 		--names "web-be,web-fe" \
 		--prefix-colors "green,yellow" \
@@ -21,6 +22,7 @@ dev-local: ## Start backend + frontend (local PostgreSQL, no Docker)
 		"cd apps/web-frontend && pnpm dev --port 5173"
 
 dev-docker: ## Start all services with Docker PostgreSQL
+	cd apps/web-backend && uv run alembic upgrade head
 	npx concurrently --kill-others-on-fail \
 		--names "docker,web-be,web-fe" \
 		--prefix-colors "blue,green,yellow" \
