@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, onMounted, nextTick } from "vue"
 import {
   listUsers,
   createUser,
@@ -69,6 +69,9 @@ function openCreateDialog() {
   createForm.value = { name: "", email: "", password: "", role: "user" as UserRole }
   createError.value = ""
   showCreateDialog.value = true
+  nextTick(() => {
+    document.getElementById("create-name")?.focus()
+  })
 }
 
 async function handleCreate() {
@@ -102,6 +105,9 @@ function openEditDialog(user: UserResponse) {
   editForm.value = { id: user.id, name: user.name, email: user.email, role: user.role ?? "user" }
   editError.value = ""
   showEditDialog.value = true
+  nextTick(() => {
+    document.getElementById("edit-name")?.focus()
+  })
 }
 
 async function handleEdit() {
@@ -258,12 +264,16 @@ onMounted(loadUsers)
     <!-- Create User Dialog -->
     <div
       v-if="showCreateDialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-dialog-title"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       @click.self="showCreateDialog = false"
+      @keydown.escape="showCreateDialog = false"
     >
       <Card class="w-full max-w-md mx-4">
         <CardHeader>
-          <CardTitle>Create User</CardTitle>
+          <CardTitle id="create-dialog-title">Create User</CardTitle>
         </CardHeader>
         <CardContent>
           <form @submit.prevent="handleCreate" class="space-y-4">
@@ -310,12 +320,16 @@ onMounted(loadUsers)
     <!-- Edit User Dialog -->
     <div
       v-if="showEditDialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-dialog-title"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       @click.self="showEditDialog = false"
+      @keydown.escape="showEditDialog = false"
     >
       <Card class="w-full max-w-md mx-4">
         <CardHeader>
-          <CardTitle>Edit User</CardTitle>
+          <CardTitle id="edit-dialog-title">Edit User</CardTitle>
         </CardHeader>
         <CardContent>
           <form @submit.prevent="handleEdit" class="space-y-4">
@@ -358,12 +372,16 @@ onMounted(loadUsers)
     <!-- Delete Confirmation Dialog -->
     <div
       v-if="deleteTarget"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       @click.self="deleteTarget = null"
+      @keydown.escape="deleteTarget = null"
     >
       <Card class="w-full max-w-sm mx-4">
         <CardHeader>
-          <CardTitle>Delete User</CardTitle>
+          <CardTitle id="delete-dialog-title">Delete User</CardTitle>
         </CardHeader>
         <CardContent>
           <p class="text-sm text-muted-foreground mb-4">
