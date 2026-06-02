@@ -1,0 +1,22 @@
+[project]
+name = "admin-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "shared-py",
+    "fastapi>=0.115",
+    "uvicorn[standard]",
+]
+
+[tool.uv.sources]
+shared-py = { workspace = true }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest-asyncio>=1.4.0",
+]

@@ -8,7 +8,7 @@ dependencies = []
 dev = ["pytest", "pytest-asyncio", "httpx", "ruff"]
 
 [tool.uv.workspace]
-members = ["apps/web-backend", "packages/shared-py"]
+members = ["apps/web-backend", "apps/admin-backend", "packages/shared-py"]
 
 [tool.uv.sources]
 shared-py = { workspace = true }
