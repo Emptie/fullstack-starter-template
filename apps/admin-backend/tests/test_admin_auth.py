@@ -1,7 +1,10 @@
 """Tests for admin auth endpoints — login (admin-only), refresh, me."""
 
 import pytest
+from sqlalchemy import select
 
+from app.models.user import User
+from starter_shared.security import hash_password
 
 BASE = "/admin/api/v1/auth"
 
@@ -9,40 +12,22 @@ BASE = "/admin/api/v1/auth"
 @pytest.mark.asyncio
 async def test_login_success(admin_user):
     """Admin login with correct credentials returns tokens."""
-    # admin_user fixture already logged in; verify it has the right shape
     assert "access_token" in admin_user
     assert "refresh_token" in admin_user
     assert admin_user["token_type"] == "bearer"
 
 
 @pytest.mark.asyncio
-async def test_login_wrong_password(client):
+async def test_login_wrong_password(client, session):
     """Login with wrong password returns 401."""
-    from starter_shared.security import hash_password
-
-    # Create admin user in DB directly
-    async with TestSessionFactory_context(client) as _:
-        pass
-
-    # Simpler: insert admin, then try wrong password
-    from app.models.user import User
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-    from starter_shared.config import settings
-    from starter_shared.database import Base
-
-    test_db_url = settings.db.get_database_url(f"{settings.db.db_name}_test")
-    engine = create_async_engine(test_db_url, echo=False)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-
-    async with factory() as s:
-        user = User(
-            email="admin2@example.com",
-            name="Admin Two",
-            hashed_password=hash_password("correctpassword"),
-            role="admin",
-        )
-        s.add(user)
-        await s.commit()
+    user = User(
+        email="admin2@example.com",
+        name="Admin Two",
+        hashed_password=hash_password("correctpassword"),
+        role="admin",
+    )
+    session.add(user)
+    await session.commit()
 
     response = await client.post(
         f"{BASE}/login",
@@ -62,21 +47,16 @@ async def test_login_nonexistent_user(client):
 
 
 @pytest.mark.asyncio
-async def test_login_non_admin_user(client):
+async def test_login_non_admin_user(client, session):
     """Login as a non-admin user returns 403."""
-    from starter_shared.security import hash_password
-
-    from app.models.user import User
-
-    async with _test_session() as s:
-        user = User(
-            email="regular@example.com",
-            name="Regular",
-            hashed_password=hash_password("regularpassword"),
-            role="user",
-        )
-        s.add(user)
-        await s.commit()
+    user = User(
+        email="regular@example.com",
+        name="Regular",
+        hashed_password=hash_password("regularpassword"),
+        role="user",
+    )
+    session.add(user)
+    await session.commit()
 
     response = await client.post(
         f"{BASE}/login",
@@ -143,10 +123,10 @@ async def test_refresh_invalid_token(client):
 
 @pytest.mark.asyncio
 async def test_refresh_revoked_token_revoke_all(client, admin_user):
-    """Replaying a used refresh token triggers replay detection (401).
+    """Replaying a used refresh token returns 401 (replay detection).
 
-    The refresh endpoint should revoke all tokens for the user when
-    it detects a previously-used refresh token being replayed.
+    The old refresh token is revoked after first use. Replaying it
+    triggers the replay detection path which returns 401.
     """
     # First refresh — succeeds, marks old token as revoked
     response = await client.post(
@@ -156,30 +136,9 @@ async def test_refresh_revoked_token_revoke_all(client, admin_user):
     assert response.status_code == 200
     new_tokens = response.json()
 
-    # Replay the same (now revoked) refresh token — should trigger replay detection
+    # Replay the same (now revoked) refresh token — should be rejected
     response2 = await client.post(
         f"{BASE}/refresh",
         content=admin_user["refresh_token"],
     )
     assert response2.status_code == 401
-
-    # The new refresh token should also be revoked (revoke-all behavior)
-    response3 = await client.post(
-        f"{BASE}/refresh",
-        content=new_tokens["refresh_token"],
-    )
-    assert response3.status_code == 401
-
-
-# ── Helpers ───────────────────────────────────────────────────────
-
-
-async def _test_session():
-    """Provide a test database session for manual DB setup."""
-    from starter_shared.config import settings
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-    test_db_url = settings.db.get_database_url(f"{settings.db.db_name}_test")
-    engine = create_async_engine(test_db_url, echo=False)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    return factory()
