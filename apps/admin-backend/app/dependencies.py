@@ -37,7 +37,16 @@ async def get_current_admin_user(token: TokenDep, session: DbSession) -> User:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    result = await session.execute(select(User).where(User.id == int(user_id)))
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await session.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
 
     if user is None:

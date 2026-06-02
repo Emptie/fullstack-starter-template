@@ -121,12 +121,26 @@ async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
             detail="Refresh token expired",
         )
 
-    user_result = await session.execute(select(User).where(User.id == int(user_id)))
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    user_result = await session.execute(select(User).where(User.id == uid))
     user = user_result.scalar_one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
+        )
+
+    if user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
         )
 
     stored.revoked = True

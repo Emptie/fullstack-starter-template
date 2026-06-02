@@ -33,6 +33,6 @@ async def get_dashboard_stats(session: DbSession, current_user: CurrentUser) -> 
         total_users=total_users,
         admin_count=admin_count,
         editor_count=editor_count,
-        user_count=total_users - admin_count - editor_count,
+        user_count=max(0, total_users - admin_count - editor_count),
         recent_registrations=recent_registrations,
     )
