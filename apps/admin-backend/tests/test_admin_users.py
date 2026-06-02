@@ -1,10 +1,17 @@
 """Tests for admin user management endpoints — list, get, create, update, delete."""
 
 import pytest
+from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from sqlalchemy import select
 
+from app.models.refresh_token import RefreshToken
 from app.models.user import User
-from starter_shared.security import hash_password
+from starter_shared.security import (
+    create_refresh_token,
+    hash_password,
+    verify_password,
+)
 
 BASE = "/admin/api/v1/users"
 
@@ -248,3 +255,106 @@ async def test_delete_user_not_found(admin_client):
     """DELETE /{user_id} with non-existent ID returns 404."""
     response = await admin_client.delete(f"{BASE}/999999")
     assert response.status_code == 404
+
+
+# --- Reset password ---
+
+
+@pytest.mark.asyncio
+async def test_reset_password_success(admin_client, session):
+    """PATCH /{user_id}/password resets the password and returns 204."""
+    user = User(
+        email="resetme@example.com",
+        name="Reset Me",
+        hashed_password=hash_password("oldpassword1"),
+        role="user",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    response = await admin_client.patch(
+        f"{BASE}/{user.id}/password",
+        json={"new_password": "newpassword1"},
+    )
+    assert response.status_code == 204
+
+    # Verify the password actually changed
+    await session.refresh(user)
+    assert verify_password("newpassword1", user.hashed_password)
+
+
+@pytest.mark.asyncio
+async def test_reset_password_user_not_found(admin_client):
+    """PATCH /{user_id}/password with non-existent ID returns 404."""
+    response = await admin_client.patch(
+        f"{BASE}/999999/password",
+        json={"new_password": "newpassword1"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_reset_password_validation_too_short(admin_client, session):
+    """PATCH /{user_id}/password with short password returns 422."""
+    user = User(
+        email="short@example.com",
+        name="Short Password",
+        hashed_password=hash_password("oldpassword1"),
+        role="user",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    response = await admin_client.patch(
+        f"{BASE}/{user.id}/password",
+        json={"new_password": "short"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reset_password_revokes_refresh_tokens(admin_client, session):
+    """PATCH /{user_id}/password deletes all refresh tokens for the user."""
+    user = User(
+        email="tokenuser@example.com",
+        name="Token User",
+        hashed_password=hash_password("oldpassword1"),
+        role="user",
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    # Create a refresh token for this user
+    token = create_refresh_token({"sub": str(user.id)})
+    token_hash = sha256(token.encode()).hexdigest()
+
+    refresh_token = RefreshToken(
+        token_hash=token_hash,
+        user_id=user.id,
+        expires_at=datetime.now(tz=timezone.utc) + timedelta(days=7),
+    )
+    session.add(refresh_token)
+    await session.commit()
+
+    # Verify the token exists
+    result = await session.execute(
+        select(RefreshToken).where(RefreshToken.user_id == user.id)
+    )
+    assert result.scalar_one_or_none() is not None
+
+    # Reset the password
+    response = await admin_client.patch(
+        f"{BASE}/{user.id}/password",
+        json={"new_password": "newpassword1"},
+    )
+    assert response.status_code == 204
+
+    # Verify the refresh token was deleted
+    await session.flush()
+    result = await session.execute(
+        select(RefreshToken).where(RefreshToken.user_id == user.id)
+    )
+    assert result.scalar_one_or_none() is None

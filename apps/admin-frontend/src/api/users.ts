@@ -1,4 +1,5 @@
 import type {
+  AdminResetPassword,
   AdminUserCreate,
   UserResponse,
   UserUpdateAdmin,
@@ -41,4 +42,11 @@ export async function updateUser(
 
 export async function deleteUser(userId: number): Promise<void> {
   await apiClient.delete(`/users/${userId}`)
+}
+
+export async function resetUserPassword(
+  userId: number,
+  data: AdminResetPassword,
+): Promise<void> {
+  await apiClient.patch(`/users/${userId}/password`, data)
 }

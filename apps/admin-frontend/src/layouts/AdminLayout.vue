@@ -48,9 +48,9 @@ async function handleLogout() {
           v-for="item in navItems"
           :key="item.route"
           @click="navigateTo(item.route)"
-          :aria-current="route.name === item.route ? 'page' : undefined"
+          :aria-current="route.name === item.route || (item.route === 'admin-users' && route.name === 'admin-user-detail') ? 'page' : undefined"
           class="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-          :class="route.name === item.route ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
+          :class="route.name === item.route || (item.route === 'admin-users' && route.name === 'admin-user-detail') ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
         >
           <component :is="item.icon" class="h-4 w-4" />
           {{ item.name }}

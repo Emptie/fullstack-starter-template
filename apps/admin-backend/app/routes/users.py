@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, or_, select
 from starter_shared.security import hash_password
 from starter_shared.types.admin import PaginatedUserResponse
 from starter_shared.types.user import (
+    AdminResetPassword,
     AdminUserCreate,
     UserResponse,
     UserRole,
@@ -141,6 +142,28 @@ async def update_user(
     await session.flush()
     await session.refresh(user)
     return _user_to_response(user)
+
+
+@router.patch("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_user_password(
+    user_id: int,
+    body: AdminResetPassword,
+    session: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Admin resets a user's password directly.
+
+    Hashes the new password and revokes all refresh tokens for the user,
+    forcing them to re-authenticate.
+    """
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.hashed_password = hash_password(body.new_password)
+    await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+    await session.flush()
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

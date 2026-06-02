@@ -3,6 +3,7 @@
 from starter_shared.types.admin import DashboardStats, PaginatedUserResponse
 from starter_shared.types.health import HealthCheck
 from starter_shared.types.user import (
+    AdminResetPassword,
     AdminUserCreate,
     ForgotPassword,
     PasswordChange,
@@ -18,6 +19,7 @@ from starter_shared.types.user import (
 )
 
 __all__ = [
+    "AdminResetPassword",
     "AdminUserCreate",
     "DashboardStats",
     "ForgotPassword",

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from "vue"
+import { useRouter } from "vue-router"
 import {
   listUsers,
   createUser,
@@ -21,12 +22,14 @@ import Toast from "@/components/Toast.vue"
 import { useToast } from "@/composables/useToast"
 
 const { addToast } = useToast()
+const router = useRouter()
 
 // --- List state ---
 const users = ref<UserResponse[]>([])
 const totalUsers = ref(0)
 const loading = ref(true)
 const search = ref("")
+const roleFilter = ref<string>("")
 const currentPage = ref(1)
 const pageSize = 10
 
@@ -40,6 +43,7 @@ async function loadUsers() {
       skip,
       limit: pageSize,
       search: search.value || undefined,
+      role: roleFilter.value || undefined,
     })
     users.value = result.items
     totalUsers.value = result.total
@@ -170,13 +174,23 @@ onMounted(loadUsers)
       <Button @click="openCreateDialog">Create User</Button>
     </div>
 
-    <div class="mb-4">
+    <div class="mb-4 flex gap-3">
       <Input
         v-model="search"
         placeholder="Search by name or email..."
         @keyup.enter="handleSearch"
         class="max-w-sm"
       />
+      <select
+        v-model="roleFilter"
+        @change="handleSearch"
+        class="rounded-md border px-3 py-2 text-sm"
+      >
+        <option value="">All Roles</option>
+        <option value="admin">Admin</option>
+        <option value="editor">Editor</option>
+        <option value="user">User</option>
+      </select>
     </div>
 
     <LoadingSpinner v-if="loading" text="Loading users..." />
@@ -218,9 +232,18 @@ onMounted(loadUsers)
                 {{ new Date(user.created_at).toLocaleDateString() }}
               </td>
               <td class="px-4 py-3">
-                <Button variant="ghost" size="sm" @click.stop="confirmDelete(user)">
-                  Delete
-                </Button>
+                <div class="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click.stop="router.push({ name: 'admin-user-detail', params: { id: user.id } })"
+                  >
+                    View
+                  </Button>
+                  <Button variant="ghost" size="sm" @click.stop="confirmDelete(user)">
+                    Delete
+                  </Button>
+                </div>
               </td>
             </tr>
             <tr v-if="users.length === 0">

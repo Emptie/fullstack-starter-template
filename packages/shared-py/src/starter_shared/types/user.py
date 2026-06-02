@@ -101,3 +101,9 @@ class UserUpdateAdmin(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     email: EmailStr
     role: UserRole
+
+
+class AdminResetPassword(BaseModel):
+    """Schema for admin resetting a user's password directly."""
+
+    new_password: str = Field(min_length=8, max_length=128)

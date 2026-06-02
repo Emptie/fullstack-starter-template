@@ -11,6 +11,7 @@ export type { UserUpdate } from "./generated.js";
 export type { PasswordChange } from "./generated.js";
 export type { UserRoleUpdate } from "./generated.js";
 export type { AdminUserCreate } from "./generated.js";
+export type { AdminResetPassword } from "./generated.js";
 export type { UserUpdateAdmin } from "./generated.js";
 export type { DashboardStats } from "./generated.js";
 export type { PaginatedUserResponse } from "./generated.js";
