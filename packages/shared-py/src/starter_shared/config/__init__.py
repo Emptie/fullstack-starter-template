@@ -67,9 +67,32 @@ class SecuritySettings(BaseSettings):
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
+    password_reset_expire_hours: int = 1
     algorithm: str = "HS256"
 
     model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
+
+
+class SmtpSettings(BaseSettings):
+    """SMTP configuration for email sending.
+
+    If smtp_host is empty, the email service falls back to console output
+    (developer-friendly: prints the reset token / link to stdout).
+    """
+
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "noreply@example.com"
+    smtp_use_tls: bool = True
+
+    model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
+
+    @property
+    def is_configured(self) -> bool:
+        """Return True when SMTP is fully configured for real email sending."""
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
 
 class AppSettings(BaseSettings):
@@ -77,12 +100,16 @@ class AppSettings(BaseSettings):
 
     db: DatabaseSettings = DatabaseSettings()
     security: SecuritySettings = SecuritySettings()
+    smtp: SmtpSettings = SmtpSettings()
 
     # App ports
     web_backend_port: int = 8000
     admin_backend_port: int = 8001
     web_frontend_port: int = 5173
     admin_frontend_port: int = 5174
+
+    # Frontend base URL used for password reset links and similar
+    frontend_base_url: str = "http://localhost:5173"
 
     model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
 

@@ -1,9 +1,29 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import { createPinia, setActivePinia } from "pinia"
 import { useAuthStore } from "@/stores/auth"
 
+// Mock the router module
+vi.mock("@/router", () => ({
+  default: { push: vi.fn() },
+}))
+
+import router from "@/router"
+
+// Mock the auth API module
+vi.mock("@/api/auth", () => ({
+  login: vi.fn(),
+  register: vi.fn(),
+  refreshToken: vi.fn(),
+  getMe: vi.fn(),
+  updateProfile: vi.fn(),
+  changePassword: vi.fn(),
+}))
+
+import * as authApi from "@/api/auth"
+
 describe("useAuthStore", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     setActivePinia(createPinia())
     localStorage.clear()
   })
@@ -40,5 +60,88 @@ describe("useAuthStore", () => {
     expect(store.accessToken).toBe("saved-access")
     expect(store.refreshToken).toBe("saved-refresh")
     expect(store.isAuthenticated).toBe(true)
+  })
+
+  describe("refreshAccessToken", () => {
+    it("clears auth and redirects to login when no refresh token", async () => {
+      const store = useAuthStore()
+      store.refreshToken = ""
+
+      await store.refreshAccessToken()
+
+      expect(store.isAuthenticated).toBe(false)
+      expect(store.accessToken).toBe("")
+      expect(router.push).toHaveBeenCalledWith({ name: "login" })
+    })
+
+    it("refreshes tokens on success", async () => {
+      const store = useAuthStore()
+      store.refreshToken = "valid-refresh"
+
+      vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
+        access_token: "new-access",
+        refresh_token: "new-refresh",
+      } as any)
+
+      await store.refreshAccessToken()
+
+      expect(store.accessToken).toBe("new-access")
+      expect(store.refreshToken).toBe("new-refresh")
+      expect(localStorage.getItem("access_token")).toBe("new-access")
+      expect(router.push).not.toHaveBeenCalled()
+    })
+
+    it("clears auth and redirects to login on refresh failure", async () => {
+      const store = useAuthStore()
+      store.accessToken = "old-access"
+      store.refreshToken = "bad-refresh"
+      localStorage.setItem("access_token", "old-access")
+      localStorage.setItem("refresh_token", "bad-refresh")
+
+      vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new Error("fail"))
+
+      await store.refreshAccessToken()
+
+      expect(store.isAuthenticated).toBe(false)
+      expect(store.accessToken).toBe("")
+      expect(store.refreshToken).toBe("")
+      expect(localStorage.getItem("access_token")).toBeNull()
+      expect(localStorage.getItem("refresh_token")).toBeNull()
+      expect(router.push).toHaveBeenCalledWith({ name: "login" })
+    })
+  })
+
+  describe("updateProfile", () => {
+    it("updates user in store on success", async () => {
+      const store = useAuthStore()
+      store.accessToken = "valid-token"
+      store.user = {
+        id: 1,
+        email: "test@example.com",
+        name: "Old Name",
+        created_at: "2025-01-01T00:00:00Z",
+      } as any
+
+      vi.mocked(authApi.updateProfile).mockResolvedValueOnce({
+        id: 1,
+        email: "test@example.com",
+        name: "New Name",
+        created_at: "2025-01-01T00:00:00Z",
+      } as any)
+
+      await store.updateProfile({ name: "New Name" })
+
+      expect(authApi.updateProfile).toHaveBeenCalledWith({ name: "New Name" })
+      expect(store.user?.name).toBe("New Name")
+    })
+
+    it("propagates errors to caller", async () => {
+      const store = useAuthStore()
+      store.accessToken = "valid-token"
+
+      vi.mocked(authApi.updateProfile).mockRejectedValueOnce(new Error("Server error"))
+
+      await expect(store.updateProfile({ name: "Fail" })).rejects.toThrow("Server error")
+    })
   })
 })
