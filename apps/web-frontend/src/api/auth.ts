@@ -1,5 +1,5 @@
 import { apiClient } from "./client"
-import type { UserCreate, UserLogin, UserResponse, TokenResponse, ForgotPassword, ResetPassword } from "@starter/shared"
+import type { UserCreate, UserLogin, UserResponse, TokenResponse, ForgotPassword, ResetPassword, UserUpdate, PasswordChange } from "@starter/shared"
 
 export async function register(data: UserCreate): Promise<TokenResponse> {
   return apiClient.post<TokenResponse>("/auth/register", data)
@@ -23,4 +23,12 @@ export async function forgotPassword(data: ForgotPassword): Promise<{ message: s
 
 export async function resetPassword(data: ResetPassword): Promise<{ message: string }> {
   return apiClient.post<{ message: string }>("/auth/reset-password", data)
+}
+
+export async function updateProfile(data: UserUpdate): Promise<UserResponse> {
+  return apiClient.patch<UserResponse>("/auth/me", data)
+}
+
+export async function changePassword(data: PasswordChange): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>("/auth/change-password", data)
 }

@@ -151,23 +151,23 @@ describe("apiClient error handling", () => {
     expect(router.push).toHaveBeenCalledWith({ name: "login" })
   })
 
-  it("does not attempt refresh for auth endpoints", async () => {
+  it("does not attempt refresh for /auth/refresh endpoint", async () => {
     localStorage.setItem("access_token", "some-token")
 
-    // Login endpoint returns 401 (e.g. wrong password)
-    await mockFetchOnce({ detail: "Invalid credentials" }, 401)
+    // Refresh endpoint returns 401 (e.g. expired refresh token)
+    await mockFetchOnce({ detail: "Invalid token" }, 401)
 
     try {
-      await apiClient.post("/auth/login", { email: "a@b.com", password: "wrong" })
+      await apiClient.post("/auth/refresh", "some-refresh-token")
       expect.unreachable("Should have thrown")
     } catch (err) {
       expect(err).toBeInstanceOf(ApiError)
       const apiErr = err as ApiError
       expect(apiErr.status).toBe(401)
-      expect(apiErr.message).toBe("Invalid credentials")
+      expect(apiErr.message).toBe("Invalid token")
     }
 
-    // Should NOT have called router.push (no redirect)
+    // Should NOT have called router.push (no redirect to login)
     expect(router.push).not.toHaveBeenCalled()
   })
 

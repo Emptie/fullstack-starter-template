@@ -234,6 +234,7 @@ async def change_password(
         )
 
     current_user.hashed_password = hash_password(body.new_password)
+    await _revoke_all_user_tokens(session, current_user.id)
     await session.flush()
     return {"message": "Password updated successfully"}
 

@@ -76,7 +76,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    if (response.status === 401 && token && !path.includes("/auth/")) {
+    if (response.status === 401 && token && path !== "/auth/refresh") {
       // Try refreshing the token
       const refreshed = await tryRefresh()
       if (refreshed) {
