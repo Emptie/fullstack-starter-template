@@ -46,6 +46,10 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  async function updateProfile(data: { name: string }) {
+    user.value = await authApi.updateProfile(data)
+  }
+
   async function refreshAccessToken() {
     if (!refreshToken.value) {
       clearAuth()
@@ -73,6 +77,7 @@ export const useAuthStore = defineStore("auth", () => {
     login,
     register,
     fetchProfile,
+    updateProfile,
     refreshAccessToken,
     logout,
   }

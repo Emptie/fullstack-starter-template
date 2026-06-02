@@ -124,4 +124,10 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     })
   },
+  patch<T>(path: string, body?: unknown): Promise<T> {
+    return request<T>(path, {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  },
 }

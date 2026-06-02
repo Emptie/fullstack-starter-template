@@ -15,6 +15,8 @@ vi.mock("@/api/auth", () => ({
   register: vi.fn(),
   refreshToken: vi.fn(),
   getMe: vi.fn(),
+  updateProfile: vi.fn(),
+  changePassword: vi.fn(),
 }))
 
 import * as authApi from "@/api/auth"
@@ -106,6 +108,40 @@ describe("useAuthStore", () => {
       expect(localStorage.getItem("access_token")).toBeNull()
       expect(localStorage.getItem("refresh_token")).toBeNull()
       expect(router.push).toHaveBeenCalledWith({ name: "login" })
+    })
+  })
+
+  describe("updateProfile", () => {
+    it("updates user in store on success", async () => {
+      const store = useAuthStore()
+      store.accessToken = "valid-token"
+      store.user = {
+        id: 1,
+        email: "test@example.com",
+        name: "Old Name",
+        created_at: "2025-01-01T00:00:00Z",
+      } as any
+
+      vi.mocked(authApi.updateProfile).mockResolvedValueOnce({
+        id: 1,
+        email: "test@example.com",
+        name: "New Name",
+        created_at: "2025-01-01T00:00:00Z",
+      } as any)
+
+      await store.updateProfile({ name: "New Name" })
+
+      expect(authApi.updateProfile).toHaveBeenCalledWith({ name: "New Name" })
+      expect(store.user?.name).toBe("New Name")
+    })
+
+    it("propagates errors to caller", async () => {
+      const store = useAuthStore()
+      store.accessToken = "valid-token"
+
+      vi.mocked(authApi.updateProfile).mockRejectedValueOnce(new Error("Server error"))
+
+      await expect(store.updateProfile({ name: "Fail" })).rejects.toThrow("Server error")
     })
   })
 })

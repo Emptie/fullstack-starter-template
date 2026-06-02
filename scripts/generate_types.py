@@ -29,6 +29,8 @@ EXPORT_MODELS: list[str] = [
     "starter_shared.types.user:UserCreate",
     "starter_shared.types.user:UserLogin",
     "starter_shared.types.user:UserResponse",
+    "starter_shared.types.user:UserUpdate",
+    "starter_shared.types.user:PasswordChange",
     "starter_shared.types.user:TokenResponse",
 ]
 
