@@ -1,9 +1,12 @@
 """Admin user management routes."""
 
-from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import delete, func, or_, select
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_, select
 
 from starter_shared.security import hash_password
+from starter_shared.token_store import TokenStore, get_token_store
 from starter_shared.types.admin import PaginatedUserResponse
 from starter_shared.types.user import (
     AdminResetPassword,
@@ -14,8 +17,9 @@ from starter_shared.types.user import (
 )
 
 from app.dependencies import CurrentUser, DbSession
-from app.models.refresh_token import RefreshToken
 from app.models.user import User
+
+StoreDep = Annotated[TokenStore, Depends(get_token_store)]
 
 router = APIRouter()
 
@@ -150,6 +154,7 @@ async def reset_user_password(
     body: AdminResetPassword,
     session: DbSession,
     current_user: CurrentUser,
+    store: StoreDep,
 ) -> None:
     """Admin resets a user's password directly.
 
@@ -162,7 +167,7 @@ async def reset_user_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.hashed_password = hash_password(body.new_password)
-    await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+    await store.revoke_all_user_refresh_tokens(user_id)
     await session.flush()
 
 
@@ -171,6 +176,7 @@ async def delete_user(
     user_id: int,
     session: DbSession,
     current_user: CurrentUser,
+    store: StoreDep,
 ) -> None:
     """Delete a user. Cannot delete yourself."""
     if user_id == current_user.id:
@@ -181,5 +187,5 @@ async def delete_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+    await store.revoke_all_user_refresh_tokens(user_id)
     await session.delete(user)

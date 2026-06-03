@@ -1,10 +1,10 @@
 """Admin auth routes — login (admin-only), refresh, me."""
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, status
-from sqlalchemy import select, update
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from sqlalchemy import select
 
 from starter_shared.config import settings
 from starter_shared.security import (
@@ -13,6 +13,7 @@ from starter_shared.security import (
     verify_password,
     verify_token,
 )
+from starter_shared.token_store import TokenStore, get_token_store
 from starter_shared.types.user import (
     TokenResponse,
     UserLogin,
@@ -21,14 +22,16 @@ from starter_shared.types.user import (
 )
 
 from app.dependencies import CurrentUser, DbSession
-from app.models.refresh_token import RefreshToken
 from app.models.user import User
 
 router = APIRouter()
+StoreDep = Annotated[TokenStore, Depends(get_token_store)]
+
+_REFRESH_TTL = settings.security.refresh_token_expire_days * 86400
 
 
 def _hash_token(token: str) -> str:
-    """SHA-256 hash of a refresh token for DB storage."""
+    """SHA-256 hash of a token for Redis key lookup."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -41,21 +44,8 @@ def _create_tokens(user_id: int) -> tuple[TokenResponse, str]:
     return response, refresh
 
 
-async def _store_refresh_token(session: DbSession, user_id: int, raw_token: str) -> None:
-    """Store a new refresh token hash in the database."""
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        days=settings.security.refresh_token_expire_days
-    )
-    rt = RefreshToken(
-        token_hash=_hash_token(raw_token),
-        user_id=user_id,
-        expires_at=expires_at,
-    )
-    session.add(rt)
-
-
 @router.post("/login", response_model=TokenResponse)
-async def admin_login(body: UserLogin, session: DbSession) -> TokenResponse:
+async def admin_login(body: UserLogin, session: DbSession, store: StoreDep) -> TokenResponse:
     """Authenticate an admin user. Same users table, requires role=admin."""
     result = await session.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
@@ -73,12 +63,12 @@ async def admin_login(body: UserLogin, session: DbSession) -> TokenResponse:
         )
 
     tokens, raw_refresh = _create_tokens(user.id)
-    await _store_refresh_token(session, user.id, raw_refresh)
+    await store.store_refresh_token(_hash_token(raw_refresh), user.id, _REFRESH_TTL)
     return tokens
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
+async def refresh(store: StoreDep, session: DbSession, token: str = Body(...)) -> TokenResponse:
     """Exchange a valid refresh token for a new token pair (rotation)."""
     payload = verify_token(token, token_type="refresh")
     if payload is None:
@@ -95,30 +85,14 @@ async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
         )
 
     token_hash = _hash_token(token)
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )
-    stored = result.scalar_one_or_none()
+    stored_user_id = await store.get_refresh_token(token_hash)
 
-    if stored is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unknown refresh token",
-        )
-
-    if stored.revoked:
-        await session.execute(
-            update(RefreshToken).where(RefreshToken.user_id == stored.user_id).values(revoked=True)
-        )
+    if stored_user_id is None:
+        uid = int(user_id)
+        await store.revoke_all_user_refresh_tokens(uid)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token already used. All sessions terminated.",
-        )
-
-    if stored.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token expired",
         )
 
     try:
@@ -143,9 +117,9 @@ async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
             detail="Admin access required",
         )
 
-    stored.revoked = True
+    await store.revoke_refresh_token(token_hash, user.id)
     tokens, raw_refresh = _create_tokens(user.id)
-    await _store_refresh_token(session, user.id, raw_refresh)
+    await store.store_refresh_token(_hash_token(raw_refresh), user.id, _REFRESH_TTL)
     return tokens
 
 

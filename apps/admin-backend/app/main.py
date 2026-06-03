@@ -18,9 +18,14 @@ from app.routes import auth, dashboard, users
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown logic."""
-    yield
     from starter_shared.database import engine
+    from starter_shared.token_store import close_redis, init_redis
 
+    # Startup
+    await init_redis()
+    yield
+    # Shutdown
+    await close_redis()
     await engine.dispose()
 
 
