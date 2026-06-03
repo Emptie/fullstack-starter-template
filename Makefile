@@ -1,4 +1,4 @@
-.PHONY: setup dev dev-local dev-docker dev-all dev-admin-be dev-admin-fe generate lint typecheck test clean init-db
+.PHONY: setup dev dev-local dev-docker dev-all up dev-db dev-db-local init-db dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
 
 # ── Setup ──────────────────────────────────────────────
 
@@ -31,8 +31,17 @@ dev-docker: ## Start all services with Docker PostgreSQL
 		"cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000" \
 		"cd apps/web-frontend && pnpm dev --port 5173"
 
-dev-all: ## Start all 4 services (backend + admin + frontend + admin-frontend)
+dev-all: ## Start all 4 services (runs migrations first)
 	cd apps/web-backend && uv run alembic upgrade head
+	npx concurrently --kill-others-on-fail \
+		--names "web-be,admin-be,web-fe,admin-fe" \
+		--prefix-colors "green,cyan,yellow,blue" \
+		"cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000" \
+		"cd apps/admin-backend && uv run uvicorn app.main:app --reload --port 8001" \
+		"cd apps/web-frontend && pnpm dev --port 5173" \
+		"cd apps/admin-frontend && pnpm dev --port 5174"
+
+up: ## Start all 4 apps (no DB init, assumes DB already set up)
 	npx concurrently --kill-others-on-fail \
 		--names "web-be,admin-be,web-fe,admin-fe" \
 		--prefix-colors "green,cyan,yellow,blue" \
