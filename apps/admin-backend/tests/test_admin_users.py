@@ -1,12 +1,12 @@
 """Tests for admin user management endpoints — list, get, create, update, delete."""
 
 import pytest
-from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from redis.asyncio import Redis
 from sqlalchemy import select
 
-from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from starter_shared.config import settings
 from starter_shared.security import (
     create_refresh_token,
     hash_password,
@@ -316,7 +316,7 @@ async def test_reset_password_validation_too_short(admin_client, session):
 
 @pytest.mark.asyncio
 async def test_reset_password_revokes_refresh_tokens(admin_client, session):
-    """PATCH /{user_id}/password deletes all refresh tokens for the user."""
+    """PATCH /{user_id}/password revokes all refresh tokens for the user."""
     user = User(
         email="tokenuser@example.com",
         name="Token User",
@@ -327,34 +327,30 @@ async def test_reset_password_revokes_refresh_tokens(admin_client, session):
     await session.commit()
     await session.refresh(user)
 
-    # Create a refresh token for this user
+    # Create a refresh token for this user directly in Redis
     token = create_refresh_token({"sub": str(user.id)})
     token_hash = sha256(token.encode()).hexdigest()
 
-    refresh_token = RefreshToken(
-        token_hash=token_hash,
-        user_id=user.id,
-        expires_at=datetime.now(tz=timezone.utc) + timedelta(days=7),
-    )
-    session.add(refresh_token)
-    await session.commit()
+    test_redis_url = settings.redis.redis_url.rstrip("/").rsplit("/", 1)[0] + "/1"
+    redis = Redis.from_url(test_redis_url, decode_responses=True)
+    try:
+        ttl = settings.security.refresh_token_expire_days * 86400
+        await redis.set(f"rt:{token_hash}", str(user.id), ex=ttl)
+        await redis.sadd(f"user_rt:{user.id}", token_hash)
 
-    # Verify the token exists
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.user_id == user.id)
-    )
-    assert result.scalar_one_or_none() is not None
+        # Verify the token exists in Redis
+        val = await redis.get(f"rt:{token_hash}")
+        assert val is not None
 
-    # Reset the password
-    response = await admin_client.patch(
-        f"{BASE}/{user.id}/password",
-        json={"new_password": "newpassword1"},
-    )
-    assert response.status_code == 204
+        # Reset the password
+        response = await admin_client.patch(
+            f"{BASE}/{user.id}/password",
+            json={"new_password": "newpassword1"},
+        )
+        assert response.status_code == 204
 
-    # Verify the refresh token was deleted
-    await session.flush()
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.user_id == user.id)
-    )
-    assert result.scalar_one_or_none() is None
+        # Verify the refresh token was revoked (key deleted)
+        val = await redis.get(f"rt:{token_hash}")
+        assert val is None
+    finally:
+        await redis.aclose()

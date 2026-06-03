@@ -136,18 +136,20 @@ async def test_refresh_token_rotation(client, test_user):
     new_tokens = response.json()
 
     # Replay the same refresh token — should be revoked
+    # This triggers replay detection, which revokes ALL tokens for the user
     response2 = await client.post(
         "/api/v1/auth/refresh",
         json=test_user["refresh_token"],
     )
     assert response2.status_code == 401
+    assert "already used" in response2.json()["detail"].lower()
 
-    # But the new refresh token works
+    # The new refresh token is also revoked (replay detection revokes all)
     response3 = await client.post(
         "/api/v1/auth/refresh",
         json=new_tokens["refresh_token"],
     )
-    assert response3.status_code == 200
+    assert response3.status_code == 401
 
 
 # ── PATCH /auth/me — Update profile ──────────────────────────

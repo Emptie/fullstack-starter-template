@@ -1,13 +1,29 @@
 """Tests for password reset endpoints — forgot-password, reset-password."""
 
+import asyncio
 import hashlib
-from datetime import datetime, timedelta, timezone
+import secrets
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from redis.asyncio import Redis
 
-from app.models.password_reset_token import PasswordResetToken
+from starter_shared.config import settings
+
+
+def _get_test_redis() -> Redis:
+    """Get a Redis client connected to the test DB."""
+    url = settings.redis.redis_url.rstrip("/").rsplit("/", 1)[0] + "/1"
+    return Redis.from_url(url, decode_responses=True)
+
+
+async def _get_user_id(client, test_user: dict) -> int:
+    """Get user ID from /me endpoint."""
+    me_response = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {test_user['access_token']}"},
+    )
+    return me_response.json()["id"]
 
 
 @pytest.mark.asyncio
@@ -47,8 +63,8 @@ async def test_forgot_password_invalid_email(client):
 
 
 @pytest.mark.asyncio
-async def test_forgot_password_creates_hashed_token(client, test_user, session):
-    """The stored token is a SHA-256 hash, not the raw token."""
+async def test_forgot_password_creates_hashed_token(client, test_user):
+    """The stored token is a SHA-256 hash in Redis, not the raw token."""
     captured_token = None
 
     async def mock_send(email, token):
@@ -63,34 +79,28 @@ async def test_forgot_password_creates_hashed_token(client, test_user, session):
     assert response.status_code == 200
     assert captured_token is not None
 
-    # The stored hash should be the SHA-256 of the raw token
+    # The stored key should be prt:<sha256(raw_token)>
     expected_hash = hashlib.sha256(captured_token.encode()).hexdigest()
-    result = await session.execute(
-        select(PasswordResetToken).where(
-            PasswordResetToken.token_hash == expected_hash
-        )
-    )
-    stored = result.scalar_one_or_none()
-    assert stored is not None
-    assert stored.used is False
+    redis = _get_test_redis()
+    try:
+        val = await redis.get(f"prt:{expected_hash}")
+        assert val is not None  # token exists in Redis
+    finally:
+        await redis.aclose()
 
 
 @pytest.mark.asyncio
-async def test_reset_password_success(client, test_user, session):
+async def test_reset_password_success(client, test_user):
     """Reset password with a valid token updates the password."""
-    import secrets
-
+    user_id = await _get_user_id(client, test_user)
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
-    reset_entry = PasswordResetToken(
-        token_hash=token_hash,
-        user_id=1,  # test_user id
-        expires_at=expires_at,
-    )
-    session.add(reset_entry)
-    await session.commit()
+    redis = _get_test_redis()
+    try:
+        await redis.set(f"prt:{token_hash}", str(user_id), ex=3600)
+    finally:
+        await redis.aclose()
 
     response = await client.post(
         "/api/v1/auth/reset-password",
@@ -119,55 +129,48 @@ async def test_reset_password_invalid_token(client):
 
 
 @pytest.mark.asyncio
-async def test_reset_password_expired_token(client, test_user, session):
+async def test_reset_password_expired_token(client, test_user):
     """Reset password with an expired token returns 400."""
-    import secrets
-
+    user_id = await _get_user_id(client, test_user)
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    # Expired 1 hour ago
-    expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
 
-    reset_entry = PasswordResetToken(
-        token_hash=token_hash,
-        user_id=1,
-        expires_at=expires_at,
-    )
-    session.add(reset_entry)
-    await session.commit()
+    redis = _get_test_redis()
+    try:
+        await redis.set(f"prt:{token_hash}", str(user_id), ex=1)
+    finally:
+        await redis.aclose()
+
+    await asyncio.sleep(1.1)
 
     response = await client.post(
         "/api/v1/auth/reset-password",
         json={"token": raw_token, "new_password": "newpassword123"},
     )
     assert response.status_code == 400
-    assert "expired" in response.json()["detail"].lower()
+    assert "invalid or expired" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
-async def test_reset_password_already_used_token(client, test_user, session):
+async def test_reset_password_already_used_token(client, test_user):
     """Reset password with an already used token returns 400."""
-    import secrets
-
+    user_id = await _get_user_id(client, test_user)
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
-    reset_entry = PasswordResetToken(
-        token_hash=token_hash,
-        user_id=1,
-        expires_at=expires_at,
-        used=True,
-    )
-    session.add(reset_entry)
-    await session.commit()
+    redis = _get_test_redis()
+    try:
+        await redis.set(f"prt:{token_hash}", str(user_id), ex=3600)
+        await redis.getdel(f"prt:{token_hash}")  # consume it
+    finally:
+        await redis.aclose()
 
     response = await client.post(
         "/api/v1/auth/reset-password",
         json={"token": raw_token, "new_password": "newpassword123"},
     )
     assert response.status_code == 400
-    assert "already been used" in response.json()["detail"].lower()
+    assert "invalid or expired" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -181,21 +184,17 @@ async def test_reset_password_short_password(client):
 
 
 @pytest.mark.asyncio
-async def test_reset_password_marks_token_used(client, test_user, session):
-    """After successful reset, the token is marked as used and cannot be reused."""
-    import secrets
-
+async def test_reset_password_marks_token_used(client, test_user):
+    """After successful reset, the token is consumed and cannot be reused."""
+    user_id = await _get_user_id(client, test_user)
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
-    reset_entry = PasswordResetToken(
-        token_hash=token_hash,
-        user_id=1,
-        expires_at=expires_at,
-    )
-    session.add(reset_entry)
-    await session.commit()
+    redis = _get_test_redis()
+    try:
+        await redis.set(f"prt:{token_hash}", str(user_id), ex=3600)
+    finally:
+        await redis.aclose()
 
     # First reset — should succeed
     response = await client.post(
@@ -204,10 +203,10 @@ async def test_reset_password_marks_token_used(client, test_user, session):
     )
     assert response.status_code == 200
 
-    # Second reset with same token — should fail
+    # Second reset with same token — should fail (GETDEL consumed it)
     response2 = await client.post(
         "/api/v1/auth/reset-password",
         json={"token": raw_token, "new_password": "anotherpassword"},
     )
     assert response2.status_code == 400
-    assert "already been used" in response2.json()["detail"].lower()
+    assert "invalid or expired" in response2.json()["detail"].lower()
