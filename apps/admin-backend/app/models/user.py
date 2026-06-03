@@ -21,7 +21,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(64))
     hashed_password: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(
+    role: Mapped[UserRole] = mapped_column(
         SQLEnum(UserRole, name="user_role"),
         default=UserRole.user,
         server_default="user",
