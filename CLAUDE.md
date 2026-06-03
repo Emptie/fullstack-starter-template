@@ -1,119 +1,66 @@
-# CLAUDE.md — Fullstack Starter Template
+# CLAUDE.md
 
-## Architecture Overview
+## 你是谁（AI 上下文）
 
-```
-fullstack-starter-template/
-├── apps/
-│   ├── web-frontend/      Vue 3 + Vite + shadcn-vue + Tailwind   (port 5173)
-│   ├── web-backend/       FastAPI + SQLAlchemy 2.0               (port 8000)
-│   ├── admin-frontend/    Vue 3 + Vite + shadcn-vue + Tailwind   (port 5174)
-│   └── admin-backend/     FastAPI + SQLAlchemy 2.0               (port 8001)
-├── packages/
-│   ├── shared-py/         Python shared: types, db, config, security, utils
-│   └── shared-ts/         TypeScript shared: generated types, constants, utils
-├── infra/
-│   ├── docker-compose.yml PostgreSQL 16                          (port 5432)
-│   └── .env.example
-├── scripts/
-│   └── generate_types.py  Pydantic → TypeScript type bridge
-├── Makefile                dev/generate/lint/typecheck/test targets
-└── pnpm-workspace.yaml
-```
+这是一个全栈 monorepo starter template。使用它的人可能不会写代码。
+他们告诉你想要什么功能，你负责在项目结构内正确实现。
+你的目标：让使用者的想法变成可运行的代码。
 
-## App Boundaries
+## 项目边界（不要违反）
 
-| App | Port | Entry | Role |
-|-----|------|-------|------|
-| web-backend | 8000 | `app.main:app` | Public-facing REST API |
-| web-frontend | 5173 | `src/main.ts` | Public-facing SPA |
-| admin-backend | 8001 | `app.main:app` | Admin-only REST API (role-gated) |
-| admin-frontend | 5174 | `src/main.ts` | Admin panel SPA |
-| PostgreSQL | 5432 | docker-compose | Database |
+- 四个独立应用，四个独立进程。不要合并它们。
+- 数据库迁移只在 web-backend 做。admin-backend 只读不迁移。
+- Pydantic 类型是 single source of truth。TypeScript 类型是生成的。
+  修改类型 → 改 shared-py → make generate。不要手改 shared-ts。
+- 端口固定：web-frontend 5173, admin-frontend 5174, web-backend 8000, admin-backend 8001, PostgreSQL 5432。
+- 不要引入新的数据库。PostgreSQL 是唯一的数据存储，本地运行不 Docker 化。
+- 不要引入新的包管理器。前端用 pnpm，后端用 uv。
+- PostgreSQL 必须在本地运行（不是 Docker）。`make dev` 直接启动后端和前端，假设 PostgreSQL 已在本机 5432 端口运行。
 
-## Key Architecture Decisions
+## 项目结构（在哪里放东西）
 
-- **Shared database:** All backends use the same PostgreSQL database via `starter_shared.database`
-- **Single Alembic owner:** Only `web-backend` manages migrations. `admin-backend` maps the same tables with its own model classes but has no Alembic setup.
-- **Role-based access:** `UserRole` enum (admin/editor/user) is stored on the `users` table. Admin-backend checks `role=admin` on every request via `get_current_admin_user` dependency.
-- **Separate auth sessions:** Admin-frontend uses `admin_access_token`/`admin_refresh_token` localStorage keys to avoid collision with web-frontend.
+apps/web-frontend/     → 用户面向的 Vue 3 前端
+apps/web-backend/      → 用户面向的 FastAPI 后端
+apps/admin-frontend/   → 管理后台 Vue 3 前端
+apps/admin-backend/    → 管理后台 FastAPI 后端
+packages/shared-py/    → Python 共享包（类型从这里出发）
+packages/shared-ts/    → TypeScript 共享包（类型自动生成到这里）
 
-## How to Add a New Feature
+## 添加新功能的流程
 
-1. **Define Pydantic model** in `packages/shared-py/src/starter_shared/types/`
-2. **Run `make generate`** to generate TypeScript types in `packages/shared-ts/src/types/`
-3. **Add SQLAlchemy model** in `apps/web-backend/app/models/`
-4. **Create Alembic migration** with `cd apps/web-backend && uv run alembic revision --autogenerate -m "description"`
-5. **If admin needs the model**, mirror it in `apps/admin-backend/app/models/` (same table name, same columns)
-6. **Add API route** in `apps/web-backend/app/routes/` and/or `apps/admin-backend/app/routes/`
-7. **Add API client call** in `apps/web-frontend/src/api/` and/or `apps/admin-frontend/src/api/`
-8. **Create Vue component** in `apps/.../src/views/` or `components/`
+1. 在 packages/shared-py/src/starter_shared/types/ 定义 Pydantic 模型
+2. make generate 生成 TypeScript 类型
+3. 在 apps/web-backend/app/models/ 加 SQLAlchemy 模型
+4. 在 apps/web-backend 运行 Alembic 生成迁移
+5. 在 apps/web-backend/app/routes/ 加 API 路由
+6. 在 apps/web-frontend/src/api/ 手写 API 客户端
+7. 在 apps/web-frontend/src/views/ 加 Vue 页面
+8. 如果管理后台也需要，在 admin-backend 和 admin-frontend 做同样的事
 
-## Naming Conventions
+## 常见错误（不要犯）
 
-- Python package: `starter_shared` (import as `from starter_shared.xxx import Yyy`)
-- TypeScript package: `@starter/shared` (import as `import { Yyy } from "@starter/shared"`)
-- Type bridge whitelist: edit `EXPORT_MODELS` in `scripts/generate_types.py`
-- Backend routes: `apps/web-backend/app/routes/<domain>.py`
-- Admin routes: `apps/admin-backend/app/routes/<domain>.py`
-- Frontend views: `apps/web-frontend/src/views/<Page>.vue`
-- Admin views: `apps/admin-frontend/src/views/<Page>.vue`
+- 不要在 admin-backend 里创建 Alembic 迁移
+- 不要手改 packages/shared-ts/src/types/ 里的生成文件
+- 不要跨应用直接导入代码（web-frontend 不能 import admin-frontend 的组件）
+- 不要用 localStorage 存敏感信息（用 httpOnly cookie 或只存 token）
+- 不要在 shared-py 的类型文件之间互相导入（保持扁平）
+- 不要在 app 层级定义 Pydantic schema。用 shared-py 里的类型。
 
-## Type Bridge
+## 技术栈（不要偏离）
 
-Pydantic models → JSON Schema → TypeScript types.
+- Frontend: Vue 3.5 + Vite + shadcn-vue + Tailwind CSS 4
+- Backend: FastAPI + SQLAlchemy 2.0 (async) + Pydantic 2
+- Database: PostgreSQL（不锁定版本，本地运行）
+- Auth: JWT + Refresh Token + UserRole enum
+- Monorepo: pnpm workspaces + uv workspaces
 
-1. Add model to `starter_shared/types/` and export from `__init__.py`
-2. Add model class name to `EXPORT_MODELS` in `scripts/generate_types.py`
-3. Run `make generate`
-4. Generated TS files appear in `packages/shared-ts/src/types/`
+## 开发命令
 
-Note: Enums (like `UserRole`) are NOT in EXPORT_MODELS — they appear as type aliases in generated types. Manual re-exports can be added to `packages/shared-ts/src/types/index.ts`.
-
-Run `make generate` whenever you change Pydantic models in shared-py.
-
-## Development Commands
-
-| Command | What it does |
-|---------|-------------|
-| `make setup` | Install all dependencies |
-| `make dev` | Start postgres + web-backend + web-frontend |
-| `make dev-all` | Start all 4 services (web + admin) |
-| `make dev-admin-be` | Start only admin backend |
-| `make dev-admin-fe` | Start only admin frontend |
-| `make dev-db` | Start only PostgreSQL (Docker) |
-| `make dev-be` | Start only web backend |
-| `make dev-fe` | Start only web frontend |
-| `make generate` | Run type bridge (Pydantic → TS) |
-| `make lint` | Lint Python + TypeScript |
-| `make typecheck` | Type check all code |
-| `make test` | Run all tests |
-
-## Individual App Startup
-
-```bash
-# Backend only (needs DB running)
-make dev-db
-make dev-be
-
-# Frontend only
-make dev-fe
-
-# Admin backend only
-make dev-admin-be
-
-# Admin frontend only
-make dev-admin-fe
-
-# Everything
-make dev-all
-```
-
-## Tech Stack
-
-- **Frontend:** Vue 3.5 + Vite 8 + shadcn-vue + Tailwind CSS 4 + TypeScript 6
-- **Backend:** FastAPI + SQLAlchemy 2.0 (async) + Alembic + Pydantic 2
-- **Database:** PostgreSQL 16
-- **Auth:** JWT + Refresh Token + UserRole enum
-- **Testing:** Vitest + pytest
-- **Monorepo:** pnpm workspaces + uv workspaces
+make setup        → 安装所有依赖
+make dev          → 启动 web-backend + web-frontend（PostgreSQL 需在本机 5432 端口运行）
+make dev-all      → 启动所有四个应用
+make generate     → 运行类型桥
+make test         → 跑所有测试
+make lint         → Lint 所有代码
+make typecheck    → 类型检查所有代码
+make scaffold     → 创建新功能的骨架文件
