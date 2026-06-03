@@ -13,9 +13,9 @@
 - Pydantic 类型是 single source of truth。TypeScript 类型是生成的。
   修改类型 → 改 shared-py → make generate。不要手改 shared-ts。
 - 端口固定：web-frontend 5173, admin-frontend 5174, web-backend 8000, admin-backend 8001, PostgreSQL 5432。
-- 不要引入新的数据库。PostgreSQL 是唯一的数据存储，本地运行不 Docker 化。
+- 不要引入新的数据库。PostgreSQL 是唯一的关系型数据库，Redis 是 token 缓存。本地运行不 Docker 化。
 - 不要引入新的包管理器。前端用 pnpm，后端用 uv。
-- PostgreSQL 必须在本地运行（不是 Docker）。`make dev` 直接启动后端和前端，假设 PostgreSQL 已在本机 5432 端口运行。
+- PostgreSQL 必须在本地运行（不是 Docker）。Redis 也必须在本地运行。`make dev` 直接启动后端和前端，假设 PostgreSQL 和 Redis 已在本机运行。
 
 ## 项目结构（在哪里放东西）
 
@@ -51,14 +51,17 @@ packages/shared-ts/    → TypeScript 共享包（类型自动生成到这里）
 - Frontend: Vue 3.5 + Vite + shadcn-vue + Tailwind CSS 4
 - Backend: FastAPI + SQLAlchemy 2.0 (async) + Pydantic 2
 - Database: PostgreSQL（不锁定版本，本地运行）
+- Cache/Token Store: Redis（refresh token + password reset token）
 - Auth: JWT + Refresh Token + UserRole enum
 - Monorepo: pnpm workspaces + uv workspaces
 
 ## 开发命令
 
 make setup        → 安装所有依赖
-make dev          → 启动 web-backend + web-frontend（PostgreSQL 需在本机 5432 端口运行）
+make dev          → 启动 web-backend + web-frontend（PostgreSQL 和 Redis 需在本机运行）
 make dev-all      → 启动所有四个应用
+make up           → 启动所有 4 个应用（跳过 DB 初始化，假设 DB 已就绪）
+make stop         → 停止所有 dev server
 make generate     → 运行类型桥
 make test         → 跑所有测试
 make lint         → Lint 所有代码

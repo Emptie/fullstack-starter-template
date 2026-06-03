@@ -6,10 +6,10 @@
 
 1. 点击右上角 "Use this template" → 创建你自己的仓库
 2. Clone 到本地
-3. 确保安装了 PostgreSQL 和 Node.js
-   - macOS: `brew install postgresql node` 然后 `brew services start postgresql`
-   - Windows: 安装 [PostgreSQL](https://www.postgresql.org/download/windows/) 和 [Node.js](https://nodejs.org/)
-   - Linux: `sudo apt install postgresql nodejs`
+3. 确保安装了 PostgreSQL、Redis 和 Node.js
+   - macOS: `brew install postgresql redis node` 然后 `brew services start postgresql redis`
+   - Windows: 安装 [PostgreSQL](https://www.postgresql.org/download/windows/)、[Redis](https://github.com/tporadowski/redis/releases) 和 [Node.js](https://nodejs.org/)
+   - Linux: `sudo apt install postgresql redis-server nodejs`
 4. 打开终端，cd 到项目目录
 5. 运行 `make setup`
 6. 运行 `make dev`
@@ -37,7 +37,7 @@
 
 ## 遇到问题？
 
-- `make setup` 失败 → 确保装了 PostgreSQL 和 Node.js
-- `make dev` 失败 → 确保 PostgreSQL 在运行（macOS: `brew services start postgresql`）
+- `make setup` 失败 → 确保装了 PostgreSQL、Redis 和 Node.js
+- `make dev` 失败 → 确保 PostgreSQL 和 Redis 在运行（macOS: `brew services start postgresql redis`）
 - 任何错误 → 在终端里运行 `claude`，把错误信息给 Claude，它会帮你修
 - 功能不符合预期 → 继续和 Claude 对话，描述你想要什么变化
