@@ -17,12 +17,16 @@ from app.routes import auth, health
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown logic."""
-    # Startup: database connection is established on first use via SQLAlchemy
-    # lazy connection pool. No explicit startup needed.
-    yield
-    # Shutdown: dispose of database connections
     from starter_shared.database import engine
+    from starter_shared.token_store import close_redis, init_redis
 
+    # Startup
+    await init_redis()
+    # Database connection is established on first use via SQLAlchemy
+    # lazy connection pool — no explicit startup needed.
+    yield
+    # Shutdown
+    await close_redis()
     await engine.dispose()
 
 

@@ -1,20 +1,19 @@
 """Auth routes — register, login, refresh, me, forgot-password, reset-password.
 
-Refresh tokens are stored in the database and rotated on each use.
+Refresh tokens are stored in Redis and rotated on each use.
 If a revoked token is replayed, all tokens for that user are revoked
 to mitigate token theft.
 
-Password reset tokens are SHA-256 hashed in the database and expire after
-a configurable period. The email service is pluggable: SMTP if configured,
-console output otherwise.
+Password reset tokens are SHA-256 hashed in Redis and expire via TTL.
+The email service is pluggable: SMTP if configured, console output otherwise.
 """
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, status
-from sqlalchemy import select, update
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from sqlalchemy import select
 
 from starter_shared.config import settings
 from starter_shared.security import (
@@ -24,6 +23,7 @@ from starter_shared.security import (
     verify_password,
     verify_token,
 )
+from starter_shared.token_store import TokenStore, get_token_store
 from starter_shared.types.user import (
     ForgotPassword,
     PasswordChange,
@@ -37,16 +37,19 @@ from starter_shared.types.user import (
 )
 
 from app.dependencies import CurrentUser, DbSession
-from app.models.password_reset_token import PasswordResetToken
-from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.services.email import send_password_reset_email
 
 router = APIRouter()
+StoreDep = Annotated[TokenStore, Depends(get_token_store)]
+
+# TTL constants (seconds)
+_REFRESH_TTL = settings.security.refresh_token_expire_days * 86400
+_RESET_TTL = settings.security.password_reset_expire_hours * 3600
 
 
 def _hash_token(token: str) -> str:
-    """SHA-256 hash of a refresh token for DB storage."""
+    """SHA-256 hash of a token for Redis key lookup."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -54,7 +57,7 @@ def _create_tokens(user_id: int) -> tuple[TokenResponse, str]:
     """Generate an access + refresh token pair.
 
     Returns (TokenResponse, raw_refresh_token) so the caller can
-    store the hashed refresh token in the database.
+    store the hashed refresh token in Redis.
     """
     data = {"sub": str(user_id)}
     access = create_access_token(data)
@@ -63,28 +66,8 @@ def _create_tokens(user_id: int) -> tuple[TokenResponse, str]:
     return response, refresh
 
 
-async def _store_refresh_token(session: DbSession, user_id: int, raw_token: str) -> None:
-    """Store a new refresh token hash in the database."""
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        days=settings.security.refresh_token_expire_days
-    )
-    rt = RefreshToken(
-        token_hash=_hash_token(raw_token),
-        user_id=user_id,
-        expires_at=expires_at,
-    )
-    session.add(rt)
-
-
-async def _revoke_all_user_tokens(session: DbSession, user_id: int) -> None:
-    """Revoke all refresh tokens for a user (compromise response)."""
-    await session.execute(
-        update(RefreshToken).where(RefreshToken.user_id == user_id).values(revoked=True)
-    )
-
-
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: UserCreate, session: DbSession) -> TokenResponse:
+async def register(body: UserCreate, session: DbSession, store: StoreDep) -> TokenResponse:
     """Register a new user and return JWT tokens."""
     result = await session.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none() is not None:
@@ -104,12 +87,12 @@ async def register(body: UserCreate, session: DbSession) -> TokenResponse:
     await session.refresh(user)
 
     tokens, raw_refresh = _create_tokens(user.id)
-    await _store_refresh_token(session, user.id, raw_refresh)
+    await store.store_refresh_token(_hash_token(raw_refresh), user.id, _REFRESH_TTL)
     return tokens
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: UserLogin, session: DbSession) -> TokenResponse:
+async def login(body: UserLogin, session: DbSession, store: StoreDep) -> TokenResponse:
     """Authenticate a user and return JWT tokens."""
     result = await session.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
@@ -121,12 +104,12 @@ async def login(body: UserLogin, session: DbSession) -> TokenResponse:
         )
 
     tokens, raw_refresh = _create_tokens(user.id)
-    await _store_refresh_token(session, user.id, raw_refresh)
+    await store.store_refresh_token(_hash_token(raw_refresh), user.id, _REFRESH_TTL)
     return tokens
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
+async def refresh(store: StoreDep, session: DbSession, token: str = Body(...)) -> TokenResponse:
     """Exchange a valid refresh token for a new token pair (rotation).
 
     The old token is revoked. If a revoked token is replayed, all
@@ -146,36 +129,22 @@ async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
             detail="Invalid token payload",
         )
 
-    # Look up the token in DB
+    # Look up the token in Redis
     token_hash = _hash_token(token)
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )
-    stored = result.scalar_one_or_none()
+    stored_user_id = await store.get_refresh_token(token_hash)
 
-    if stored is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unknown refresh token",
-        )
-
-    # Replay detection: if already revoked, revoke ALL user tokens
-    if stored.revoked:
-        await _revoke_all_user_tokens(session, stored.user_id)
+    if stored_user_id is None:
+        # Token not found = already revoked/expired → potential replay
+        # Try to revoke all tokens for this user as a safety measure
+        uid = int(user_id)
+        await store.revoke_all_user_refresh_tokens(uid)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token already used. All sessions terminated.",
         )
 
-    # Check expiry
-    if stored.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token expired",
-        )
-
     # Verify user still exists
-    user_result = await session.execute(select(User).where(User.id == int(user_id)))
+    user_result = await session.execute(select(User).where(User.id == stored_user_id))
     user = user_result.scalar_one_or_none()
     if user is None:
         raise HTTPException(
@@ -184,9 +153,9 @@ async def refresh(session: DbSession, token: str = Body(...)) -> TokenResponse:
         )
 
     # Rotate: revoke old token, issue new pair
-    stored.revoked = True
+    await store.revoke_refresh_token(token_hash, user.id)
     tokens, raw_refresh = _create_tokens(user.id)
-    await _store_refresh_token(session, user.id, raw_refresh)
+    await store.store_refresh_token(_hash_token(raw_refresh), user.id, _REFRESH_TTL)
     return tokens
 
 
@@ -226,6 +195,7 @@ async def change_password(
     body: PasswordChange,
     session: DbSession,
     current_user: CurrentUser,
+    store: StoreDep,
 ) -> dict[str, str]:
     """Change the authenticated user's password.
 
@@ -238,13 +208,13 @@ async def change_password(
         )
 
     current_user.hashed_password = hash_password(body.new_password)
-    await _revoke_all_user_tokens(session, current_user.id)
+    await store.revoke_all_user_refresh_tokens(current_user.id)
     await session.flush()
     return {"message": "Password updated successfully"}
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
-async def forgot_password(body: ForgotPassword, session: DbSession) -> dict:
+async def forgot_password(body: ForgotPassword, session: DbSession, store: StoreDep) -> dict:
     """Generate a password reset token and send it via email.
 
     Always returns 200 even if the email does not exist, to prevent
@@ -261,18 +231,9 @@ async def forgot_password(body: ForgotPassword, session: DbSession) -> dict:
     # Generate a random token
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        hours=settings.security.password_reset_expire_hours
-    )
 
-    # Store the hashed token
-    reset_token = PasswordResetToken(
-        token_hash=token_hash,
-        user_id=user.id,
-        expires_at=expires_at,
-    )
-    session.add(reset_token)
-    await session.flush()
+    # Store the hashed token in Redis with TTL
+    await store.store_password_reset_token(token_hash, user.id, _RESET_TTL)
 
     # Send email (SMTP or console fallback)
     await send_password_reset_email(user.email, raw_token)
@@ -281,45 +242,24 @@ async def forgot_password(body: ForgotPassword, session: DbSession) -> dict:
 
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
-async def reset_password(body: ResetPassword, session: DbSession) -> dict:
+async def reset_password(body: ResetPassword, session: DbSession, store: StoreDep) -> dict:
     """Verify a password reset token and set a new password.
 
-    The token is looked up by its SHA-256 hash. It must not be expired or used.
-    After successful reset, the token is marked as used.
+    The token is looked up by its SHA-256 hash and consumed atomically (GETDEL).
+    After successful reset, all refresh tokens are revoked.
     """
-    # Hash the provided token to look it up
+    # Atomically consume the reset token
     token_hash = _hash_token(body.token)
-    result = await session.execute(
-        select(PasswordResetToken).where(
-            PasswordResetToken.token_hash == token_hash
-        )
-    )
-    reset_token = result.scalar_one_or_none()
+    user_id = await store.consume_password_reset_token(token_hash)
 
-    if reset_token is None:
+    if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token",
         )
 
-    # Check if already used
-    if reset_token.used:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This reset token has already been used",
-        )
-
-    # Check expiry
-    if reset_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Reset token has expired",
-        )
-
     # Look up the user
-    user_result = await session.execute(
-        select(User).where(User.id == reset_token.user_id)
-    )
+    user_result = await session.execute(select(User).where(User.id == user_id))
     user = user_result.scalar_one_or_none()
 
     if user is None:
@@ -332,9 +272,6 @@ async def reset_password(body: ResetPassword, session: DbSession) -> dict:
     user.hashed_password = hash_password(body.new_password)
 
     # Revoke all refresh tokens so compromised sessions are terminated
-    await _revoke_all_user_tokens(session, user.id)
-
-    # Mark token as used
-    reset_token.used = True
+    await store.revoke_all_user_refresh_tokens(user.id)
 
     return {"message": "Password has been reset successfully"}
