@@ -1,7 +1,6 @@
 """Tests for admin auth endpoints — login (admin-only), refresh, me."""
 
 import pytest
-from sqlalchemy import select
 
 from app.models.user import User
 from starter_shared.security import hash_password
@@ -134,7 +133,6 @@ async def test_refresh_revoked_token_revoke_all(client, admin_user):
         content=admin_user["refresh_token"],
     )
     assert response.status_code == 200
-    new_tokens = response.json()
 
     # Replay the same (now revoked) refresh token — should be rejected
     response2 = await client.post(

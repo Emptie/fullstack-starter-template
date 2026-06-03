@@ -69,7 +69,6 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 @pytest_asyncio.fixture
 async def admin_user(client: AsyncClient) -> dict:
     """Create an admin user directly in the DB, then log in to get tokens."""
-    from sqlalchemy import select
 
     async with TestSessionFactory() as s:
         user = User(

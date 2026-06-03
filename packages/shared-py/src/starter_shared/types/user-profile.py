@@ -1,6 +1,5 @@
 """Pydantic models for UserProfile feature."""
 
-from pydantic import BaseModel
 
 
 # TODO: Define your UserProfile Pydantic models here

@@ -8,7 +8,6 @@ import pytest
 from sqlalchemy import select
 
 from app.models.password_reset_token import PasswordResetToken
-from app.models.user import User
 
 
 @pytest.mark.asyncio
