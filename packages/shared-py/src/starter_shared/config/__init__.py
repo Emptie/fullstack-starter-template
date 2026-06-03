@@ -95,12 +95,21 @@ class SmtpSettings(BaseSettings):
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
 
+class RedisSettings(BaseSettings):
+    """Redis configuration for token storage."""
+
+    redis_url: str = "redis://localhost:6379/0"
+
+    model_config = {"env_file": _ENV_FILE, "extra": "ignore"}
+
+
 class AppSettings(BaseSettings):
     """Application settings aggregating all sub-settings."""
 
     db: DatabaseSettings = DatabaseSettings()
     security: SecuritySettings = SecuritySettings()
     smtp: SmtpSettings = SmtpSettings()
+    redis: RedisSettings = RedisSettings()
 
     # App ports
     web_backend_port: int = 8000
