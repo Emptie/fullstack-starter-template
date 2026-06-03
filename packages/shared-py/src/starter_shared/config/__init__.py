@@ -1,5 +1,6 @@
 """Shared configuration management using pydantic-settings."""
 
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
@@ -31,7 +32,7 @@ class DatabaseSettings(BaseSettings):
 
     db_host: str = "localhost"
     db_port: int = 5432
-    db_user: str = "emptie"
+    db_user: str = os.environ.get("DB_USER", "root")
     db_password: str = "123456"
     db_name: str = "starter"
     db_table_prefix: str = ""

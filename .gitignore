@@ -34,9 +34,6 @@ Thumbs.db
 # Build output
 *.tsbuildinfo
 
-# Generated types (recreated by make generate)
-packages/shared-ts/src/types/
-
 # Database
 *.db
 *.sqlite3

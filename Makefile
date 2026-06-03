@@ -14,7 +14,7 @@ setup: ## Install all dependencies
 
 dev: dev-local ## Default: start all services (local, no Docker)
 
-dev-local: ## Start backend + frontend (local PostgreSQL, no Docker)
+dev-local: dev-db-local ## Start backend + frontend (local PostgreSQL, no Docker)
 	cd apps/web-backend && uv run alembic upgrade head
 	npx concurrently --kill-others-on-fail \
 		--names "web-be,web-fe" \
@@ -45,7 +45,7 @@ dev-db: ## Start PostgreSQL via Docker (for deployment testing)
 	docker compose -f infra/docker-compose.yml up -d
 
 dev-db-local: ## Check local PostgreSQL is running + ensure database exists
-	@/opt/homebrew/opt/postgresql@18/bin/pg_isready -h localhost -p 5432 > /dev/null 2>&1 || (echo "❌ PostgreSQL not running. Start with: brew services start postgresql@18" && exit 1)
+	@pg_isready -h localhost -p 5432 > /dev/null 2>&1 || (echo "❌ PostgreSQL not running. Start with: brew services start postgresql (macOS) or sudo systemctl start postgresql (Linux)" && exit 1)
 	@echo "✅ PostgreSQL is running"
 	uv run python scripts/init_db.py
 
