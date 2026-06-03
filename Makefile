@@ -1,4 +1,17 @@
-.PHONY: setup dev dev-local dev-docker dev-all up dev-db dev-db-local init-db dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
+.PHONY: setup dev dev-local dev-docker dev-all up stop dev-db dev-db-local init-db dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
+
+# ── Internal ───────────────────────────────────────────
+
+# Kill any process listening on the given ports (silently)
+_free-ports:
+	@for port in 8000 8001 5173 5174; do \
+		pid=$$(lsof -ti :$$port -sTCP:LISTEN 2>/dev/null); \
+		if [ -n "$$pid" ]; then \
+			echo "  ⚑ Killing PID $$pid on :$$port"; \
+			kill $$pid 2>/dev/null; \
+		fi; \
+	done
+	@sleep 0.3
 
 # ── Setup ──────────────────────────────────────────────
 
@@ -41,7 +54,7 @@ dev-all: ## Start all 4 services (runs migrations first)
 		"cd apps/web-frontend && pnpm dev --port 5173" \
 		"cd apps/admin-frontend && pnpm dev --port 5174"
 
-up: ## Start all 4 apps (no DB init, assumes DB already set up)
+up: _free-ports ## Start all 4 apps (auto-kills stale processes, no DB init)
 	npx concurrently --kill-others-on-fail \
 		--names "web-be,admin-be,web-fe,admin-fe" \
 		--prefix-colors "green,cyan,yellow,blue" \
@@ -49,6 +62,17 @@ up: ## Start all 4 apps (no DB init, assumes DB already set up)
 		"cd apps/admin-backend && uv run uvicorn app.main:app --reload --port 8001" \
 		"cd apps/web-frontend && pnpm dev --port 5173" \
 		"cd apps/admin-frontend && pnpm dev --port 5174"
+
+stop: ## Kill all running dev servers
+	@echo "Stopping dev servers..."
+	@for port in 8000 8001 5173 5174; do \
+		pid=$$(lsof -ti :$$port -sTCP:LISTEN 2>/dev/null); \
+		if [ -n "$$pid" ]; then \
+			echo "  Killing PID $$pid on :$$port"; \
+			kill $$pid 2>/dev/null; \
+		fi; \
+	done
+	@echo "✅ All dev servers stopped"
 
 dev-db: ## Start PostgreSQL via Docker (for deployment testing)
 	docker compose -f infra/docker-compose.yml up -d
