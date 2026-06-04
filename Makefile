@@ -1,4 +1,4 @@
-.PHONY: setup dev dev-local dev-docker dev-all up dev-db dev-db-local init-db dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
+.PHONY: setup dev dev-local dev-docker dev-all up dev-db dev-db-local init-db seed-admin dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
 
 # ── Internal ───────────────────────────────────────────
 
@@ -73,6 +73,9 @@ dev-db-local: ## Check local PostgreSQL is running + ensure database exists
 
 init-db: ## Interactive database setup (prompts for name and prefix)
 	uv run python scripts/init_db.py
+
+seed-admin: ## Create first admin user (interactive)
+	uv run python scripts/init_db.py --admin-only
 
 dev-be: ## Start only backend (requires DB running)
 	cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000
