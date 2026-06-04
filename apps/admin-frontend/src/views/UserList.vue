@@ -174,7 +174,7 @@ onMounted(loadUsers)
       <Button @click="openCreateDialog">Create User</Button>
     </div>
 
-    <div class="mb-4 flex gap-3">
+    <div class="mb-4 flex flex-wrap gap-3">
       <Input
         v-model="search"
         placeholder="Search by name or email..."
@@ -196,7 +196,7 @@ onMounted(loadUsers)
     <LoadingSpinner v-if="loading" text="Loading users..." />
 
     <div v-else>
-      <div class="rounded-md border">
+      <div class="rounded-md border overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="border-b bg-muted/50">
             <tr>
