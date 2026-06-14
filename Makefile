@@ -5,10 +5,7 @@
 # ── Setup ──────────────────────────────────────────────
 
 setup: ## Install all dependencies
-	uv sync
-	cd apps/web-backend && uv sync
-	cd apps/admin-backend && uv sync
-	cd packages/shared-py && uv sync
+	uv sync --all-packages
 	pnpm install
 	@echo "✅ Setup complete. Run 'make dev' to start."
 
@@ -129,7 +126,7 @@ clean: ## Remove generated files and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name node_modules -exec rm -rf {} + 2>/dev/null || true
-	rm -rf .venv apps/web-backend/.venv apps/admin-backend/.venv packages/shared-py/.venv
+	rm -rf .venv
 	rm -rf apps/web-frontend/dist apps/admin-frontend/dist
 	@echo "✅ Cleaned up"
 

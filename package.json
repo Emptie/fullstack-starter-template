@@ -2,6 +2,10 @@
   "name": "fullstack-starter-template",
   "private": true,
   "scripts": {},
+  "engines": {
+    "node": ">=26"
+  },
+  "packageManager": "pnpm@11.6.0",
   "devDependencies": {
     "concurrently": "^9.0.0",
     "json-schema-to-typescript": "^15.0.0"

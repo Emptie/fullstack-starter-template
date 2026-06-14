@@ -44,3 +44,4 @@ npm-debug.log*
 .gstack/
 .env
 .playwright-mcp/
+.gbrain-source

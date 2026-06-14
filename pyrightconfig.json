@@ -1,0 +1,18 @@
+{
+  "include": [
+    "apps/web-backend",
+    "apps/admin-backend",
+    "packages/shared-py",
+    "scripts"
+  ],
+  "exclude": [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.pytest_cache",
+    "**/site-packages"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12"
+}

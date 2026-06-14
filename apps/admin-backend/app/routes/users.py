@@ -40,23 +40,24 @@ async def list_users(
     role: UserRole | None = None,
 ) -> PaginatedUserResponse:
     """List all users with optional search/filter/pagination."""
-    # Count query (no offset/limit)
-    count_query = select(func.count(User.id))
+    # Build the search filter once so the count and data queries stay in sync.
+    search_filter = None
     if search:
         search_safe = search.replace("%", "\\%").replace("_", "\\_")
-        count_query = count_query.where(
-            or_(User.email.ilike(f"%{search_safe}%"), User.name.ilike(f"%{search_safe}%"))
-        )
+        search_filter = or_(User.email.ilike(f"%{search_safe}%"), User.name.ilike(f"%{search_safe}%"))
+
+    # Count query (no offset/limit)
+    count_query = select(func.count(User.id))
+    if search_filter is not None:
+        count_query = count_query.where(search_filter)
     if role:
         count_query = count_query.where(User.role == role)
     total = (await session.scalar(count_query)) or 0
 
     # Data query
     query = select(User)
-    if search:
-        query = query.where(
-            or_(User.email.ilike(f"%{search_safe}%"), User.name.ilike(f"%{search_safe}%"))
-        )
+    if search_filter is not None:
+        query = query.where(search_filter)
     if role:
         query = query.where(User.role == role)
     query = query.order_by(User.created_at.desc()).offset(skip).limit(limit)
