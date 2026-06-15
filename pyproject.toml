@@ -15,3 +15,10 @@ shared-py = { workspace = true }
 
 [tool.ruff]
 line-length = 120
+
+[tool.pyright]
+include = ["apps/web-backend", "apps/admin-backend", "packages/shared-py", "scripts"]
+ignore = [".venv", "**/__pycache__", "**/node_modules", "**/.pytest_cache", "**/site-packages"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
