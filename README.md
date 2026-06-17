@@ -74,12 +74,20 @@ make setup
 make dev
 ```
 
-第一次运行时会提示你：
+**首次运行** `make dev`（检测到还没有 `.env`）会自动完成一次性配置：
 
-1. **数据库配置** — 直接按回车用默认值即可
-2. **创建管理员账号** — 输入你的名字、邮箱和密码
+1. 检查 PostgreSQL + Redis 已在运行
+2. 引导创建数据库（库名默认 `starter`，直接回车即可）
+3. 写入 `.env`（数据库连接、Redis、端口，并自动生成随机 `SECRET_KEY`）
+4. 询问是否创建管理员账号（输入名字、邮箱、密码）
 
-启动成功后打开浏览器：
+配置写完后它会**主动停下**，提示你去检查/编辑 `.env`（例如把 `REDIS_URL` 改成不同 db 号做隔离；保持默认值也完全能跑）。改完再次运行：
+
+```bash
+make dev
+```
+
+这次会直接跑数据库迁移并启动服务，**不再有任何交互提示**。启动成功后打开浏览器：
 
 | 服务 | 地址 |
 | --- | --- |
@@ -97,7 +105,20 @@ make dev
 - **PostgreSQL**（端口 5432）— macOS：`brew services start postgresql`
 - **Redis**（端口 6379）— macOS：`brew services start redis`
 
-数据库连接、Redis 地址等配置见 [.env.example](.env.example)。第一次 `make dev` 会引导你完成数据库初始化；如需手动调整，把 `.env.example` 复制为 `.env` 后修改。
+### 环境变量（`.env`）
+
+你**不需要手动复制** `.env.example`。第一次运行 `make dev` 时，初始化脚本会自动创建 `.env`，写入数据库连接、Redis 地址、应用端口，并生成一个随机的 `SECRET_KEY`（用于 JWT 签名）。
+
+`.env.example` 是所有可配置项的参考模板。默认值能跑本地开发，常见可调项：
+
+| 变量 | 默认值 | 什么时候改 |
+| --- | --- | --- |
+| `SECRET_KEY` | 自动生成 | 部署前重新生成：`python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `DB_USER` / `DB_PASSWORD` | 系统用户名 / 空 | 本地 PG 用了非默认账号时 |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis 不在本地默认端口时 |
+| `SMTP_*` | 空（邮件打印到控制台） | 需要真发密码重置邮件时 |
+
+> `.env` 已在 `.gitignore` 中，不会提交；生产环境单独配置。
 
 ## 开始构建你的应用
 

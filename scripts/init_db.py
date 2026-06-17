@@ -13,6 +13,7 @@ Usage:
 import argparse
 import asyncio
 import getpass
+import secrets
 import sys
 from pathlib import Path
 
@@ -113,6 +114,40 @@ def write_env(db_name: str, table_prefix: str, existing: dict[str, str]) -> None
     print(f"  ✓ Written: {ENV_FILE}")
 
 
+def ensure_secret_key() -> None:
+    """Ensure .env has a non-empty SECRET_KEY, generating one if missing or empty.
+
+    Called after write_env() so the file exists. Idempotent: never overwrites
+    an existing non-empty SECRET_KEY.
+    """
+    lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+    found = False
+    changed = False
+    generated = secrets.token_urlsafe(32)
+    new_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key == "SECRET_KEY":
+                found = True
+                if not stripped.split("=", 1)[1].strip():
+                    new_lines.append(f"SECRET_KEY={generated}")
+                    changed = True
+                    continue
+        new_lines.append(line)
+
+    if not found:
+        new_lines.append(f"SECRET_KEY={generated}")
+        changed = True
+
+    if changed:
+        ENV_FILE.write_text("\n".join(new_lines) + "\n")
+        print("  ✓ Generated SECRET_KEY (random). Regenerate before deploy if needed.")
+    else:
+        print("  ✓ SECRET_KEY already set.")
+
+
 async def create_admin_user(
     db_name: str, user: str, password: str, host: str, port: int
 ) -> None:
@@ -162,7 +197,7 @@ async def create_admin_user(
     finally:
         await conn.close()
 
-    print(f"\n  → Admin panel: http://localhost:5174")
+    print("\n  → Admin panel: http://localhost:5174")
     print(f"  → Login with: {admin_email}")
 
 
@@ -191,6 +226,7 @@ async def run_init_db() -> None:
 
     print("\nWriting .env...")
     write_env(db_name, table_prefix, existing)
+    ensure_secret_key()
 
     effective_url = f"postgresql+asyncpg://{user}:***@{host}:{port}/{db_name}"
     print(f"\n  Database URL: {effective_url}")

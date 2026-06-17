@@ -1,4 +1,4 @@
-.PHONY: setup dev dev-local dev-docker dev-all up dev-db dev-db-local init-db seed-admin dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
+.PHONY: setup dev dev-docker dev-all up dev-db init-db seed-admin dev-run dev-be dev-fe dev-admin-be dev-admin-fe generate lint typecheck test test-be test-fe clean help
 
 # ── Internal ───────────────────────────────────────────
 
@@ -11,15 +11,16 @@ setup: ## Install all dependencies
 
 # ── Development ────────────────────────────────────────
 
-dev: dev-local ## Default: start all services (local, no Docker)
-
-dev-local: dev-db-local ## Start backend + frontend (local PostgreSQL, no Docker)
-	cd apps/web-backend && uv run alembic upgrade head
-	npx concurrently --kill-others-on-fail \
-		--names "web-be,web-fe" \
-		--prefix-colors "green,yellow" \
-		"cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000" \
-		"cd apps/web-frontend && pnpm dev --port 5173"
+dev: ## Start backend + frontend. First run bootstraps .env + DB, then stops.
+	@if [ ! -f .env ]; then \
+		$(MAKE) --no-print-directory init-db || exit 1; \
+		echo ""; \
+		echo "👉 .env created. Review/customize it (REDIS_URL, ports, SECRET_KEY already generated)."; \
+		echo "   Then re-run: make dev"; \
+		exit 0; \
+	else \
+		$(MAKE) --no-print-directory dev-run; \
+	fi
 
 dev-docker: ## Start all services with Docker PostgreSQL
 	cd apps/web-backend && uv run alembic upgrade head
@@ -63,13 +64,22 @@ stop: ## Kill all running dev servers
 dev-db: ## Start PostgreSQL via Docker (for deployment testing)
 	docker compose -f infra/docker-compose.yml up -d
 
-dev-db-local: ## Check local PostgreSQL is running + ensure database exists
+init-db: ## One-time setup: check PostgreSQL + Redis, create DB, write .env (incl. SECRET_KEY)
 	@pg_isready -h localhost -p 5432 > /dev/null 2>&1 || (echo "❌ PostgreSQL not running. Start with: brew services start postgresql (macOS) or sudo systemctl start postgresql (Linux)" && exit 1)
-	@echo "✅ PostgreSQL is running"
+	@redis-cli -h localhost -p 6379 ping > /dev/null 2>&1 || (echo "❌ Redis not running. Start with: brew services start redis (macOS) or sudo systemctl start redis-server (Linux)" && exit 1)
+	@echo "✅ PostgreSQL + Redis are running"
 	uv run python scripts/init_db.py
 
-init-db: ## Interactive database setup (prompts for name and prefix)
-	uv run python scripts/init_db.py
+dev-run: ## Start backend + frontend: check services, run migrations, launch servers
+	@pg_isready -h localhost -p 5432 > /dev/null 2>&1 || (echo "❌ PostgreSQL not running. Start with: brew services start postgresql (macOS) or sudo systemctl start postgresql (Linux)" && exit 1)
+	@redis-cli -h localhost -p 6379 ping > /dev/null 2>&1 || (echo "❌ Redis not running. Start with: brew services start redis (macOS) or sudo systemctl start redis-server (Linux)" && exit 1)
+	@echo "✅ PostgreSQL + Redis are running"
+	cd apps/web-backend && uv run alembic upgrade head
+	npx concurrently --kill-others-on-fail \
+		--names "web-be,web-fe" \
+		--prefix-colors "green,yellow" \
+		"cd apps/web-backend && uv run uvicorn app.main:app --reload --port 8000" \
+		"cd apps/web-frontend && pnpm dev --port 5173"
 
 seed-admin: ## Create first admin user (interactive)
 	uv run python scripts/init_db.py --admin-only
@@ -94,12 +104,13 @@ generate: ## Generate TypeScript types from Pydantic models
 
 # ── Code Quality ───────────────────────────────────────
 
-lint: ## Lint all code (ruff + eslint)
+lint: ## Lint all code (ruff + oxlint)
 	uv run ruff check packages/shared-py apps/web-backend apps/admin-backend
-	cd apps/web-frontend && pnpm run lint 2>/dev/null || true
-	cd apps/admin-frontend && pnpm run lint 2>/dev/null || true
+	cd apps/web-frontend && pnpm run lint
+	cd apps/admin-frontend && pnpm run lint
 
-typecheck: ## Type check all code
+typecheck: ## Type check all code (pyright for Python + vue-tsc for frontend)
+	uv run pyright
 	cd apps/web-frontend && npx vue-tsc --noEmit
 	cd apps/admin-frontend && npx vue-tsc --noEmit
 	@echo "✅ Type checking complete"

@@ -43,7 +43,7 @@ packages/shared-ts/    → TypeScript 共享包（类型自动生成到这里）
 - 不要手改 packages/shared-ts/src/types/ 里的生成文件
 - 不要跨应用直接导入代码（web-frontend 不能 import admin-frontend 的组件）
 - 不要用 localStorage 存敏感信息（用 httpOnly cookie 或只存 token）
-- 不要在 shared-py 的类型文件之间互相导入（保持扁平）
+- shared-py 类型文件允许单向引用（如 admin.py → user.py），禁止循环导入
 - 不要在 app 层级定义 Pydantic schema。用 shared-py 里的类型。
 
 ## 技术栈（不要偏离）

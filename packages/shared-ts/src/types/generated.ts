@@ -300,10 +300,3 @@ export interface PaginatedUserResponse {
  *
  * Never includes the hashed password.
  */
-export interface UserResponse {
-  id: Id;
-  email: Email;
-  name: Name;
-  role?: UserRole;
-  created_at: CreatedAt;
-}

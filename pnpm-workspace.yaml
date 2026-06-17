@@ -26,3 +26,4 @@ catalog:
   "@vue/tsconfig": "^0.9.1"
   happy-dom: "^20.9.0"
   "@types/node": "^24.12.3"
+  oxlint: "^1.70.0"
